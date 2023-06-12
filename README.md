@@ -3,6 +3,8 @@
 
 The quickest way to get started is to request our installer. The installer will do practically everything you need to get a SplendidCRM Community Core site up and running, with the exception of installing SQL Server Express. Or, you can download the latest from GitHub and build the app yourself.
 
+You can also use Docker to get started.  We have provided a composer file that will create an instance of SQL Server 2022 to get you going quickly.
+
 ## Minimum Requirements
 1. Windows 10 or higher, Windows Server 2016 or higher.
 2. ASP.NET Core 5.0 Hosting Bundle. Download [ASP.NET Core 5.0](https://dotnet.microsoft.com/en-us/download/dotnet/5.0 "ASP.NET Core 5.0")
@@ -13,7 +15,7 @@ The quickest way to get started is to request our installer. The installer will 
 7. Yarn version 1.22. Download using npm: "npm install --global yarn"
 
 ## Using Docker
-We have added this core build to Docker Hub at ![splendidcrm/community](https://hub.docker.com/r/splendidcrm/community).
+We have added this core build to Docker Hub at ![SplendidCRM Community on Docker](https://hub.docker.com/r/splendidcrm/community "SplendidCRM Community on Docker").
 
 ## Using the Installer
 This is the same installer that we have been using for the last 15 years with our other SplendidCRM products. The goal of the installer is to do everything necessary to get the system running on whatever version of windows you are running. We typically include SQL Server Express with the installer to save you that step, but we have decided not to do that with this product. The app will do the following:
