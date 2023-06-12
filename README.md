@@ -15,7 +15,7 @@ You can also use Docker to get started.  We have provided a composer file that w
 7. Yarn version 1.22. Download using npm: "npm install --global yarn"
 
 ## Using Docker
-We have added this core build to Docker Hub at ![SplendidCRM Community on Docker](https://hub.docker.com/r/splendidcrm/community "SplendidCRM Community on Docker").
+We have added this core build to Docker Hub at [SplendidCRM Community on Docker](https://hub.docker.com/r/splendidcrm/community "SplendidCRM Community on Docker").
 
 ## Using the Installer
 This is the same installer that we have been using for the last 15 years with our other SplendidCRM products. The goal of the installer is to do everything necessary to get the system running on whatever version of windows you are running. We typically include SQL Server Express with the installer to save you that step, but we have decided not to do that with this product. The app will do the following:
