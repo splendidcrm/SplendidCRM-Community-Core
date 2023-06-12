@@ -21,10 +21,9 @@
  *********************************************************************************************************************/
 using System;
 using System.IO;
-using System.Web;
 using System.Text;
 using System.Data;
-using System.Data.Common;
+using System.Threading.Tasks;
 using System.Diagnostics;
 
 using Microsoft.AspNetCore.Http;
@@ -55,7 +54,7 @@ setTimeout(function()
 }}, 3000);
 </script>
 <body>
-The SplendidCRM database is being built.
+The SplendidCRM database is being built.  {4}
 <div class=""ProgressBarFrame"" align=""left"">
 	<table cellspacing=""0"" width=""100%"" class=""ProgressBar"" style=""width: {0}%;"">
 		<tbody class=""ProgressBar"">
@@ -83,13 +82,17 @@ To manually enable SplendidCRM, you will need to delete the app_offline.htm file
 
 		private IWebHostEnvironment  hostingEnvironment ;
 		private SplendidError        SplendidError      ;
+		private HttpContext          Context            ;
+		private SplendidInit         SplendidInit       ;
 		private DbProviderFactories  DbProviderFactories = new DbProviderFactories();
 		private HttpApplicationState Application = new HttpApplicationState();
 
-		public SqlBuild(IWebHostEnvironment hostingEnvironment, SplendidError SplendidError)
+		public SqlBuild(IHttpContextAccessor httpContextAccessor, IWebHostEnvironment hostingEnvironment, SplendidError SplendidError, SplendidInit SplendidInit)
 		{
+			this.Context             = httpContextAccessor.HttpContext;
 			this.hostingEnvironment  = hostingEnvironment ;
 			this.SplendidError       = SplendidError      ;
+			this.SplendidInit        = SplendidInit       ;
 		}
 
 		public class BuildState
@@ -98,32 +101,28 @@ To manually enable SplendidCRM, you will need to delete the app_offline.htm file
 			private DbProviderFactories  DbProviderFactories = new DbProviderFactories();
 			private HttpApplicationState Application = new HttpApplicationState();
 			private SplendidError        SplendidError      ;
-			private HttpContext          Context            ;
+			private SplendidInit         SplendidInit       ;
 			private string[]             arrSQL             ;
 			
-			public BuildState(IWebHostEnvironment hostingEnvironment, HttpContext Context, SplendidError SplendidError, string[] arrSQL)
+			public BuildState(IWebHostEnvironment hostingEnvironment, SplendidError SplendidError, SplendidInit SplendidInit, string[] arrSQL)
 			{
 				this.hostingEnvironment  = hostingEnvironment ;
 				this.SplendidError       = SplendidError      ;
-				this.Context             = Context;
-				this.arrSQL              = arrSQL;
+				this.SplendidInit        = SplendidInit       ;
+				this.arrSQL              = arrSQL             ;
 			}
 			
-			public void Start()
+			public async Task Start()
 			{
-				string sBuildLogPath = "~/App_Data/Build.log".Replace("~", hostingEnvironment.ContentRootPath).Replace("/", "\\");
+				string sBuildLogPath = "~/App_Data/Build.log".Replace("~", hostingEnvironment.ContentRootPath);
+				if ( Path.DirectorySeparatorChar == '\\' )
+					sBuildLogPath = sBuildLogPath.Replace("/", "\\");
 				try
 				{
-					string sOfflinePath = "~/app_offline.htm".Replace("~", hostingEnvironment.ContentRootPath).Replace("/", "\\");
-					try
-					{
-						Debug.WriteLine(DateTime.Now.ToString() + " Begin");
-						File.AppendAllText(sBuildLogPath, DateTime.Now.ToString() + " Begin" + ControlChars.CrLf);
-					}
-					catch
-					{
-						// The App_Data folder may be read-only, so protect against exception. 
-					}
+					DateTime dtStart = DateTime.Now;
+					MaintenanceMiddleware.MaintenanceMode = true;
+					Debug.WriteLine(DateTime.Now.ToString() + " Begin");
+					await Task.Delay(TimeSpan.FromMilliseconds(1));
 					
 					int nErrors = 0;
 					StringBuilder sbLogText = new StringBuilder();
@@ -140,20 +139,15 @@ To manually enable SplendidCRM, you will need to delete the app_offline.htm file
 								try
 								{
 									// 08/02/2015 Paul.  Do not include the SQL as it would confuse users. 
-									string sOfflineHtml = String.Format(sProgressTemplate, nProgress, nProgress, sbLogText.ToString(), String.Empty);
-									try
-									{
-										File.WriteAllText(sOfflinePath, sOfflineHtml);
-									}
-									catch(Exception ex)
-									{
-										// There may be an exception if we try and write the file and IIS is trying to deliver the file. Just ignore. 
-										Debug.WriteLine(ex.Message);
-									}
+									// 06/03/2023 Paul.  Include SQL until code stablizes. 
+									TimeSpan ts = DateTime.Now - dtStart;
+									string sOfflineHtml = String.Format(sProgressTemplate, nProgress, nProgress, sbLogText.ToString(), sSQL, "Elapse time " + ts.ToString(@"h\:mm\:ss"));
+									MaintenanceMiddleware.OfflineText = sOfflineHtml;
 #if DEBUG
 									int nEndOfLine = sSQL.IndexOf(ControlChars.CrLf);
 									string sFirstLine = (nEndOfLine > 0) ? sSQL.Substring(0, nEndOfLine) : sSQL;
 									Debug.WriteLine(sFirstLine);
+									Console.WriteLine(sFirstLine);
 #endif
 									using ( IDbCommand cmd = con.CreateCommand() )
 									{
@@ -178,6 +172,8 @@ To manually enable SplendidCRM, you will need to delete the app_offline.htm file
 								}
 							}
 						}
+						TimeSpan tsEnd = DateTime.Now - dtStart;
+						SplendidError.SystemMessage("Information", new StackTrace(true).GetFrame(0), "Database build elabase time " + tsEnd.ToString(@"h\:mm\:ss"));
 					}
 					try
 					{
@@ -192,17 +188,77 @@ To manually enable SplendidCRM, you will need to delete the app_offline.htm file
 					{
 						SplendidError.SystemMessage("Error", new StackTrace(true).GetFrame(0), sbLogText.ToString());
 						string sOfflineHtml = String.Format(sErrorTemplate, sbLogText.ToString());
-						File.WriteAllText(sOfflinePath, sOfflineHtml);
+						MaintenanceMiddleware.OfflineText = sOfflineHtml;
 					}
 					else
 					{
-						if ( File.Exists(sOfflinePath) )
-							File.Delete(sOfflinePath);
+						SplendidInit.InitApp();
+						Application["SplendidInit.InitApp"] = true;
+						MaintenanceMiddleware.MaintenanceMode = false;
+						MaintenanceMiddleware.OfflineText     = "Build Completed at " + DateTime.Now.ToString();
+
+						// 06/10/2023 Paul.  ZipCode table will be populated separately as it takes a very long time, roughly equally as long as rest of build file. 
+						string sBuildSqlPath = "~/App_Data/ZIPCODES.5.sql".Replace("~", hostingEnvironment.ContentRootPath);
+						if ( Path.DirectorySeparatorChar == '\\' )
+							sBuildSqlPath = sBuildSqlPath.Replace("/", "\\");
+
+						if ( File.Exists(sBuildSqlPath) )
+						{
+							string sBuildSQL = File.ReadAllText(sBuildSqlPath);
+							if ( !String.IsNullOrEmpty(sBuildSQL) )
+							{
+								SplendidError.SystemMessage("Information", new StackTrace(true).GetFrame(0), "ZipCode build start");
+								dtStart = DateTime.Now;
+								sBuildSQL = sBuildSQL.Replace(ControlChars.CrLf + "go" + ControlChars.CrLf, ControlChars.CrLf + "GO" + ControlChars.CrLf);
+								sBuildSQL = sBuildSQL.Replace(ControlChars.CrLf + "Go" + ControlChars.CrLf, ControlChars.CrLf + "GO" + ControlChars.CrLf);
+								string[] arrZipcodesSQL = Microsoft.VisualBasic.Strings.Split(sBuildSQL, ControlChars.CrLf + "GO" + ControlChars.CrLf, -1, Microsoft.VisualBasic.CompareMethod.Text);
+								using ( IDbConnection con = dbf.CreateConnection() )
+								{
+									con.Open();
+									for ( int i = 0; i < arrZipcodesSQL.Length; i++ )
+									{
+										string sSQL = arrZipcodesSQL[i].Trim();
+										if ( !String.IsNullOrEmpty(sSQL) )
+										{
+											try
+											{
+												using ( IDbCommand cmd = con.CreateCommand() )
+												{
+													cmd.CommandTimeout = 0;
+													cmd.CommandText = sSQL;
+													cmd.ExecuteNonQuery();
+												}
+											}
+											catch(Exception ex)
+											{
+												nErrors++;
+												string sThisError = i.ToString() + ": " + ex.Message + ControlChars.CrLf;
+												sbLogText.Append(sThisError);
+												try
+												{
+													SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+													File.AppendAllText(sBuildLogPath, DateTime.Now.ToString() + " - " + sThisError + sSQL + ControlChars.CrLf + ControlChars.CrLf);
+												}
+												catch
+												{
+													// The App_Data folder may be read-only, so protect against exception. 
+												}
+												// 06/10/2023 Paul.  No need to continue if we encounter an error. 
+												break;
+											}
+										}
+									}
+									TimeSpan tsEnd = DateTime.Now - dtStart;
+									SplendidError.SystemMessage("Information", new StackTrace(true).GetFrame(0), "ZipCode build elabase time " + tsEnd.ToString(@"h\:mm\:ss"));
+								}
+							}
+						}
 					}
 				}
 				catch(Exception ex)
 				{
 					SplendidError.SystemMessage("Error", new StackTrace(true).GetFrame(0), ex);
+					MaintenanceMiddleware.OfflineText = "Build Failed: " + ex.Message;
 					try
 					{
 						File.AppendAllText(sBuildLogPath, DateTime.Now.ToString() + " - " + ex.Message + ControlChars.CrLf + ControlChars.CrLf);
@@ -215,14 +271,123 @@ To manually enable SplendidCRM, you will need to delete the app_offline.htm file
 			}
 		}
 
-		public void BuildDatabase(HttpContext Context)
+		private async Task CreateDatabase()
 		{
-			string sBuildSqlPath = "~/App_Data/Build.sql".Replace("~", hostingEnvironment.ContentRootPath).Replace("/", "\\");
+			DbProviderFactory dbf = DbProviderFactories.GetFactory();
 			try
 			{
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					con.Open();
+					using ( IDbCommand cmd = con.CreateCommand() )
+					{
+						string sSQL = "select count(*) from INFORMATION_SCHEMA.TABLES where TABLE_NAME = 'CONFIG'";
+						cmd.CommandTimeout = 0;
+						cmd.CommandText = sSQL;
+						int nTables = Sql.ToInteger(cmd.ExecuteScalar());
+					}
+				}
+			}
+			catch(Exception ex)
+			{
+				Debug.WriteLine(ex.Message);
+				// 06/01/20203 Paul.  If we cannot access list of tables, then database may not exist. 
+				string sSplendidProvider = Sql.ToString(Application["SplendidProvider"]);
+				string sConnectionString = Sql.ToString(Application["ConnectionString"]);
+				string sDatabaseName     = String.Empty;
+				StringBuilder sbMasterConnectionString = new StringBuilder();
+				if ( sSplendidProvider == "System.Data.SqlClient" )
+				{
+					string[] arrConnectionString = sConnectionString.Split(";");
+					foreach ( string keyvalue in arrConnectionString )
+					{
+						string[] arrKeyValue = keyvalue.Trim().Split("=");
+						if ( arrKeyValue[0].ToLower() == "initial catalog" && arrKeyValue.Length == 2 )
+						{
+							sDatabaseName = arrKeyValue[1];
+							sbMasterConnectionString.Append("initial catalog=master;");
+						}
+						else
+						{
+							sbMasterConnectionString.Append(keyvalue + ";");
+						}
+					}
+					if ( !Sql.IsEmptyString(sDatabaseName) )
+					{
+						string sMasterConnectionString = sbMasterConnectionString.ToString();
+						Debug.WriteLine(sMasterConnectionString);
+						DbProviderFactory dbfMaster = DbProviderFactories.GetFactory(sSplendidProvider, sMasterConnectionString);
+						using ( IDbConnection conMaster = dbfMaster.CreateConnection() )
+						{
+							conMaster.Open();
+							using ( IDbCommand cmd = conMaster.CreateCommand() )
+							{
+								string sSQL = "select count(*) from sys.sysdatabases where name = '" + sDatabaseName + "'";
+								cmd.CommandTimeout = 0;
+								cmd.CommandText = sSQL;
+								int nDatabases = Sql.ToInteger(cmd.ExecuteScalar());
+								if ( nDatabases == 0 )
+								{
+									sSQL = "create database " + sDatabaseName;
+									cmd.CommandText = sSQL;
+									cmd.ExecuteNonQuery();
+									for ( int i = 0; i < 10; i++ )
+									{
+										// 06/08/2023 Paul.  For some reason, the database is not immediately openable. 
+										await Task.Delay(TimeSpan.FromSeconds(1));
+										try
+										{
+											using ( IDbConnection con = dbf.CreateConnection() )
+											{
+												con.Open();
+												return;
+											}
+										}
+										catch
+										{
+											Debug.WriteLine("Failed to connect to new database, pass #" + i.ToString());
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		private void AppDirectoryTree(string strDirectory)
+		{
+			FileInfo objInfo ;
+
+			string[] arrFiles = Directory.GetFiles(strDirectory);
+			for ( int i = 0 ; i < arrFiles.Length ; i++ )
+			{
+				objInfo = new FileInfo(arrFiles[i]);
+				Debug.WriteLine(objInfo.FullName);
+			}
+
+			string[] arrDirectories = Directory.GetDirectories(strDirectory);
+			for ( int i = 0 ; i < arrDirectories.Length ; i++ )
+			{
+				objInfo = new FileInfo(arrDirectories[i]);
+				AppDirectoryTree(objInfo.FullName);
+			}
+		}
+
+		public async Task BuildDatabase()
+		{
+			await Task.Delay(TimeSpan.FromMilliseconds(1));
+			string sBuildSqlPath = "~/App_Data/Build.sql".Replace("~", hostingEnvironment.ContentRootPath);
+			if ( Path.DirectorySeparatorChar == '\\' )
+				sBuildSqlPath = sBuildSqlPath.Replace("/", "\\");
+			try
+			{
+				//AppDirectoryTree(hostingEnvironment.ContentRootPath);
 				// 08/01/2015 Paul.  If Build.log exists, then we have already processed the build.sql file, so skip. 
 				if ( File.Exists(sBuildSqlPath) )
 				{
+					await CreateDatabase();
 					DbProviderFactory dbf = DbProviderFactories.GetFactory();
 					using ( IDbConnection con = dbf.CreateConnection() )
 					{
@@ -230,7 +395,7 @@ To manually enable SplendidCRM, you will need to delete the app_offline.htm file
 						using ( IDbCommand cmd = con.CreateCommand() )
 						{
 							string sSQL = "select count(*) from INFORMATION_SCHEMA.TABLES where TABLE_NAME = 'CONFIG'";
-							cmd.CommandTimeout = 0;
+							cmd.CommandTimeout = 1;
 							cmd.CommandText = sSQL;
 							int nTables = Sql.ToInteger(cmd.ExecuteScalar());
 							if ( nTables == 0 )
@@ -244,26 +409,17 @@ To manually enable SplendidCRM, you will need to delete the app_offline.htm file
 									string[] arrSQL = Microsoft.VisualBasic.Strings.Split(sBuildSQL, ControlChars.CrLf + "GO" + ControlChars.CrLf, -1, Microsoft.VisualBasic.CompareMethod.Text);
 									if ( arrSQL.Length > 1 )
 									{
-										string sOfflinePath = "~/app_offline.htm".Replace("~", hostingEnvironment.ContentRootPath).Replace("/", "\\");
-										try
+										string sOfflineHtml = String.Format(sProgressTemplate, 0, 0, String.Empty, String.Empty, String.Empty);
+										MaintenanceMiddleware.OfflineText     = sOfflineHtml;
+										
+										if ( !MaintenanceMiddleware.MaintenanceMode )
 										{
-											string sOfflineHtml = String.Format(sProgressTemplate, 0, 0, String.Empty, String.Empty);
-											File.WriteAllText(sOfflinePath, sOfflineHtml);
-											// 08/01/2015 Paul.  Send content and flush so that the browser will refresh. 
-											// 04/29/2023 Paul.  TODO.  Not sure of how to do this in .NET Core. 
-											//Context.Response.Write(sOfflineHtml);
-											//Context.Response.Flush();
+											BuildState build = new BuildState(hostingEnvironment, SplendidError, SplendidInit, arrSQL);
+											// 06/03/2023 Paul.  Start async but don't wait. 
+#pragma warning disable CS4014
+											build.Start();
+#pragma warning restore CS4014
 										}
-										catch(Exception ex)
-										{
-											// There may be an exception if we try and write the file and IIS is trying to deliver the file. Just ignore. 
-											Debug.WriteLine(ex.Message);
-										}
-										BuildState build = new BuildState(hostingEnvironment, Context, SplendidError, arrSQL);
-										//System.Threading.Thread t = new System.Threading.Thread(build.Start);
-										//t.Start();
-										// 08/01/2015 Paul.  Can't use a thread as IIS will terminate it. 
-										build.Start();
 									}
 								}
 							}
@@ -273,6 +429,7 @@ To manually enable SplendidCRM, you will need to delete the app_offline.htm file
 			}
 			catch(Exception ex)
 			{
+				Debug.WriteLine(ex.Message);
 				SplendidError.SystemMessage("Error", new StackTrace(true).GetFrame(0), ex);
 			}
 		}

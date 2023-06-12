@@ -46,6 +46,7 @@ using System.IO;
 using System.Net;
 using System.Text.Json;
 using System.Diagnostics;
+using Microsoft.AspNetCore.Http.Features;
 
 namespace SplendidCRM
 {
@@ -212,7 +213,8 @@ namespace SplendidCRM
 		// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
 		public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
 		{
-			//Console.WriteLine("Startup.Configure");
+			Console.WriteLine("Startup.Configure");
+			Debug.WriteLine("Startup.Configure");
 			app.UseExceptionHandler(appError =>
 			{
 				appError.Run(async context =>
@@ -244,11 +246,26 @@ namespace SplendidCRM
 				}
 			});
 			// 12/30/2021 Paul.  We must rewrite the URL very early, otherwise it is ignored. 
-			app.Use((context, next) =>
+			app.Use(async (context, next) =>
 			{
 				string sRequestPath = context.Request.Path.Value;
 				Console.WriteLine("Request: " + sRequestPath);
 				Debug.WriteLine("Request: " + sRequestPath);
+#if false
+				IHttpConnectionFeature connectionFeature = context.Features.Get<IHttpConnectionFeature>();
+				string sLocalIpAddress = connectionFeature.LocalIpAddress?.ToString();
+				Console.WriteLine("LocalIpAddress: " + sLocalIpAddress);
+				Debug.WriteLine("LocalIpAddress: " + sLocalIpAddress);
+				var hostName = System.Net.Dns.GetHostName();
+				Console.WriteLine("hostName: " + hostName);
+				Debug.WriteLine("hostName: " + hostName);
+				var ips = await System.Net.Dns.GetHostAddressesAsync(hostName);
+				foreach (var sIpAddress in ips)
+				{
+					Console.WriteLine("IpAddress: " + sIpAddress);
+					Debug.WriteLine("IpAddress: " + sIpAddress);
+				}
+#endif
 				if ( !sRequestPath.Contains(".") )
 				{
 					// 12/29/2021 Paul.  SpaDefaultPageMiddleware.cs: Rewrite all requests to the default page
@@ -259,12 +276,43 @@ namespace SplendidCRM
 					{
 						context.Request.Path = "/Angular";
 					}
+					// 06/10/2023 Paul.  Allow SystemCheck page. 
+					else if ( sRequestPath.Contains("/SystemCheck") )
+					{
+						context.Request.Path = "/SystemCheck";
+					}
+					// 06/10/2023 Paul.  Allow Procedures page. 
+					else if ( sRequestPath.Contains("/_devtools/Procedures") )
+					{
+						context.Request.Path = "/Procedures";
+					}
+					// 06/11/2023 Paul.  Allow GenerateDemo page. 
+					else if ( sRequestPath.Contains("/_devtools/GenerateDemo") )
+					{
+						context.Request.Path = "/GenerateDemo";
+					}
 					else
 					{
 						context.Request.Path = "/";
 					}
 				}
-				return next();
+				// 06/10/2023 Paul.  Allow SystemCheck page. 
+				else if ( sRequestPath.Contains("/SystemCheck.aspx") )
+				{
+					context.Request.Path = "/SystemCheck";
+				}
+				// 06/10/2023 Paul.  Allow Procedures page. 
+				else if ( sRequestPath.Contains("/_devtools/Procedures.aspx") )
+				{
+					context.Request.Path = "/Procedures";
+				}
+				// 06/11/2023 Paul.  Allow GenerateDemo page. 
+				else if ( sRequestPath.Contains("/_devtools/GenerateDemo.aspx") )
+				{
+					context.Request.Path = "/GenerateDemo";
+				}
+				await next.Invoke();
+				//return next();
 			});
 			//app.UseHttpsRedirection();
 			// https://docs.microsoft.com/en-us/aspnet/core/fundamentals/static-files?view=aspnetcore-5.0
@@ -279,11 +327,14 @@ namespace SplendidCRM
 				FileProvider = new PhysicalFileProvider(Path.Combine(env.ContentRootPath, "App_Themes")),
 				RequestPath  = "/App_Themes"
 			});  // App_Themes
+			// 06/10/2023 Paul.  Not working on Angular at this time. 
+			/*
 			app.UseStaticFiles(new StaticFileOptions
 			{
 				FileProvider = new PhysicalFileProvider(Path.Combine(env.ContentRootPath, "Angular/dist")),
 				RequestPath  = "/Angular/dist"
-			});  // App_Themes
+			});
+			*/
 			/*
 			app.UseStaticFiles(new StaticFileOptions
 			{
@@ -313,19 +364,25 @@ namespace SplendidCRM
 				if ( sRequestPath.Contains(".svc") )
 				{
 					HttpApplicationState Application = new HttpApplicationState();
-					if ( !Sql.ToBoolean(Application["SplendidInit.InitApp"]) )
+					if ( !Sql.ToBoolean(Application["SplendidInit.InitApp"]) && !MaintenanceMiddleware.MaintenanceMode )
 					{
 						// https://www.thecodebuzz.com/cannot-resolve-scoped-service-from-root-provider-asp-net-core/
 						IServiceScope scope = app.ApplicationServices.CreateScope();
 						SplendidInit SplendidInit = scope.ServiceProvider.GetService<SplendidInit>();
+						SplendidInit.InitAppURLs();
+						SqlBuild SqlBuild = scope.ServiceProvider.GetService<SqlBuild>();
+						await SqlBuild.BuildDatabase();
 						lock ( SplendidInit )
 						{
-							SplendidInit.InitApp();
-							Application["SplendidInit.InitApp"] = true;
+							if ( !MaintenanceMiddleware.MaintenanceMode )
+							{
+								SplendidInit.InitApp();
+								Application["SplendidInit.InitApp"] = true;
+							}
 						}
 					}
 					ISession Session = context.Session;
-					if ( Session != null )
+					if ( Session != null && !MaintenanceMiddleware.MaintenanceMode )
 					{
 						//Console.WriteLine("Session: " + Session.Id);
 						//Debug.WriteLine("Session: " + Session.Id);
@@ -341,6 +398,8 @@ namespace SplendidCRM
 				}
 				await next.Invoke();
 			});
+
+			app.UseMiddleware<MaintenanceMiddleware>();
 
 			app.UseEndpoints(endpoints =>
 			{

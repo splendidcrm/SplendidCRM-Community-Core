@@ -2480,10 +2480,21 @@ namespace SplendidWebApi.Controllers
 							// SystemView
 							AdminModule[] arrSystemView = new AdminModule[]
 							{ new AdminModule(L10n, "Config"                , "Administration.LBL_CONFIGURE_SETTINGS_TITLE"      , "Administration.LBL_CONFIGURE_SETTINGS"      , 10, dictModuleTabOrder , "Config.LNK_NEW_CONFIG"                     )
-							, new AdminModule(L10n, "SystemLog"             , "Administration.LBL_SYSTEM_LOG_TITLE"              , "Administration.LBL_SYSTEM_LOG"              , "List"                 )
-							, new AdminModule(L10n, "Administration"        , "Administration.LBL_CONFIGURATOR_TITLE"            , "Administration.LBL_CONFIGURATOR"            , "Configurator"         , "Administration.gif")
+							, new AdminModule(L10n, "SystemCheck"           , "Administration.LBL_SYSTEM_CHECK_TITLE"            , "Administration.LBL_SYSTEM_CHECK"            , "SystemCheck"          )
 							, new AdminModule(L10n, "Currencies"            , "Administration.LBL_MANAGE_CURRENCIES"             , "Administration.LBL_CURRENCY"                , 12, dictModuleTabOrder , "Currencies.LNK_NEW_CURRENCY"               )
+							// 12/11/2019 Paul.  SystemLog has a custom list view. 
+							, new AdminModule(L10n, "SystemLog"             , "Administration.LBL_SYSTEM_LOG_TITLE"              , "Administration.LBL_SYSTEM_LOG"              , "List"                 )
+							, new AdminModule(L10n, "Import"                , "Administration.LBL_IMPORT_DATABASE_TITLE"         , "Administration.LBL_IMPORT_DATABASE"         , "ImportDatabase"       )
+							, new AdminModule(L10n, "Import"                , "Administration.LBL_EXPORT_DATABASE_TITLE"         , "Administration.LBL_EXPORT_DATABASE"         , "ExportDatabase"       )
+							, new AdminModule(L10n, "Schedulers"            , "Administration.LBL_SUGAR_SCHEDULER_TITLE"         , "Administration.LBL_SUGAR_SCHEDULER"         , "List"                 )
+							, new AdminModule(L10n, "Config"                , "Administration.LBL_BACKUPS_TITLE"                 , "Administration.LBL_BACKUPS"                 , "BackupDatabase"       , "Backups.gif")
+							, new AdminModule(L10n, "PaymentGateway"        , "Administration.LBL_PAYMENT_GATEWAY_TITLE"         , "Administration.LBL_PAYMENT_GATEWAY"         , 15, dictModuleTabOrder , "PaymentGateway.LNK_NEW_PAYMENT_GATEWAY"    )
+							, new AdminModule(L10n, "Config"                , "Administration.LBL_BUSINESS_MODE_TITLE"           , "Administration.LBL_BUSINESS_MODE"           , "BusinessMode"         )
+							, new AdminModule(L10n, "Administration"        , "Administration.LBL_CONFIGURATOR_TITLE"            , "Administration.LBL_CONFIGURATOR"            , "Configurator"         , "Administration.gif")
 							, new AdminModule(L10n, "Undelete"              , "Administration.LBL_UNDELETE_TITLE"                , "Administration.LBL_UNDELETE"                , "AdminUndeleteListView")
+							, new AdminModule(L10n, "ZipCodes"              , "Administration.LBL_ZIPCODES_TITLE"                , "Administration.LBL_ZIPCODES"                , 16, dictModuleTabOrder , "ZipCodes.LNK_NEW_ZIPCODE"                  , "Administration.gif")
+							, new AdminModule(L10n, "NAICSCodes"            , "Administration.LBL_MANAGE_NAICS_CODES_TITLE"      , "Administration.LBL_MANAGE_NAICS_CODES"      , 17, dictModuleTabOrder , "NAICSCodes.LNK_NEW_NAICS_CODE"             , "Administration.gif")
+							, new AdminModule(L10n, "ModulesArchiveRules"   , "Administration.LBL_MODULE_ARCHIVE_RULES_TITLE"    , "Administration.LBL_MODULE_ARCHIVE_RULES"    , 18, dictModuleTabOrder , "ModulesArchiveRules.LNK_NEW_ARCHIVE_RULE"  , "Backups.gif")
 							};
 							BuildAdminModules(L10n, objs, "SystemView", "Administration.LBL_ADMINISTRATION_HOME_TITLE", arrSystemView);
 							break;
@@ -2518,9 +2529,68 @@ namespace SplendidWebApi.Controllers
 							, new AdminModule(L10n, "DynamicButtons"        , "Administration.LBL_MANAGE_DYNAMIC_BUTTONS_TITLE"  , "Administration.LBL_MANAGE_DYNAMIC_BUTTONS"  , 26, dictModuleTabOrder , "DynamicButtons.LNK_NEW_DYNAMIC_BUTTON"     )
 							, new AdminModule(L10n, "Terminology"           , "Administration.LBL_IMPORT_TERMINOLOGY_TITLE"      , "Administration.LBL_IMPORT_TERMINOLOGY_TITLE", "TerminologyImport"    , "Terminology.gif"                           )
 							, new AdminModule(L10n, "FieldValidators"       , "Administration.LBL_MANAGE_FIELD_VALIDATORS_TITLE" , "Administration.LBL_MANAGE_FIELD_VALIDATORS" , 27, dictModuleTabOrder , "FieldValidators.LNK_NEW_FIELD_VALIDATOR"   , "Administration.gif")
+							, new AdminModule(L10n, "Tags"                  , "Administration.LBL_MANAGE_TAGS_TITLE"             , "Administration.LBL_MANAGE_TAGS"             , 28, dictModuleTabOrder , "Tags.LNK_NEW_TAG"                          , "Tags.png")
+							, new AdminModule(L10n, "FullTextSearch"        , "FullTextSearch.LBL_MANAGE_FULLTEXT_SEARCH_TITLE"  , "FullTextSearch.LBL_MANAGE_FULLTEXT_SEARCH"  , "ConfigView"           , "Administration.gif"                        )
+							// 11/17/2021 Paul.  Add support for module builder. 
 							, new AdminModule(L10n, "ModuleBuilder"         , "Administration.LBL_MODULE_BUILDER_TITLE"          , "Administration.LBL_MODULE_BUILDER"          , "EditView"             , "Administration.gif"                        )
 							};
 							BuildAdminModules(L10n, objs, "StudioView", "Administration.LBL_STUDIO_TITLE", arrStudioView);
+							break;
+						}
+						case "EmailsView":
+						{
+							AdminModule[] arrEmailsView = new AdminModule[]
+							{ new AdminModule(L10n, "EmailMan"              , "Administration.LBL_MASS_EMAIL_CONFIG_TITLE"       , "Administration.LBL_MASS_EMAIL_CONFIG_DESC"  , "ConfigView"           )
+							, new AdminModule(L10n, "EmailMan"              , "Administration.LBL_MASS_EMAIL_MANAGER_TITLE"      , "Administration.LBL_MASS_EMAIL_MANAGER_DESC" , "List"                 )
+							, new AdminModule(L10n, "InboundEmail"          , "Administration.LBL_INBOUND_EMAIL_TITLE"           , "Administration.LBL_MAILBOX_DESC"            , 40, dictModuleTabOrder , "InboundEmail.LNK_LIST_CREATE_NEW"          )
+							, new AdminModule(L10n, "EmailMan"              , "Administration.LBL_CAMPAIGN_EMAIL_TITLE"          , "Administration.LBL_CAMPAIGN_EMAIL_DESC"     , "AdminCampaignEditView", "Campaigns.gif")
+							, new AdminModule(L10n, "OutboundEmail"         , "Administration.LBL_OUTBOUND_EMAIL_TITLE"          , "Administration.LBL_OUTBOUND_EMAIL_DESC"     , 41, dictModuleTabOrder , "OutboundEmail.LNK_NEW_OUTBOUND_EMAIL"      , "InboundEmail.gif")
+							};
+							BuildAdminModules(L10n, objs, "EmailsView", "Administration.LBL_EMAIL_TITLE", arrEmailsView);
+							break;
+						}
+						case "BugsView":
+						{
+							AdminModule[] arrBugsView = new AdminModule[]
+							{ new AdminModule(L10n, "Releases"              , "Administration.LBL_MANAGE_RELEASES"               , "Administration.LBL_RELEASE"                 , 50, dictModuleTabOrder , "Releases.LNK_NEW_RELEASE"                  )
+							, new AdminModule(L10n, "NumberSequences"       , "Administration.LBL_NUMBER_SEQUENCES"              , "Administration.LBL_MANAGE_NUMBER_SEQUENCES" , "List"                 , "Releases.gif")
+							};
+							BuildAdminModules(L10n, objs, "BugsView", "Administration.LBL_BUG_TITLE", arrBugsView);
+							break;
+						}
+						case "ForumsView":
+						{
+							AdminModule[] arrForumsView = new AdminModule[]
+							{ new AdminModule(L10n, "ForumTopics"           , "Administration.LBL_FORUM_TOPICS"                  , "Administration.LBL_FORUM_TOPICS_DESC"       , 70, dictModuleTabOrder , "Forums.LNK_NEW_FORUM"                      )
+							};
+							BuildAdminModules(L10n, objs, "ForumsView", "Administration.LBL_FORUM_TOPICS_TITLE", arrForumsView);
+							break;
+						}
+						case "CloudView":
+						{
+							AdminModule[] arrCloudView = new AdminModule[]
+							// 06/11/2023 Paul.  facebook.gif is all lowercase.  Fix for Docker/Linux. 
+							{ new AdminModule(L10n, "Facebook"              , "Facebook.LBL_MANAGE_FACEBOOK_TITLE"               , "Facebook.LBL_MANAGE_FACEBOOK"               , "ConfigView"           , "facebook.gif"       )
+							, new AdminModule(L10n, "Google"                , "Google.LBL_MANAGE_GOOGLE_TITLE"                   , "Google.LBL_MANAGE_GOOGLE"                   , "ConfigView"           )
+							, new AdminModule(L10n, "LinkedIn"              , "LinkedIn.LBL_MANAGE_LINKEDIN_TITLE"               , "LinkedIn.LBL_MANAGE_LINKEDIN"               , "ConfigView"           )
+							, new AdminModule(L10n, "Twitter"               , "Twitter.LBL_MANAGE_TWITTER_TITLE"                 , "Twitter.LBL_MANAGE_TWITTER"                 , "ConfigView"           )
+							, new AdminModule(L10n, "Salesforce"            , "Salesforce.LBL_MANAGE_SALESFORCE_TITLE"           , "Salesforce.LBL_MANAGE_SALESFORCE"           , "ConfigView"           )
+							, new AdminModule(L10n, "QuickBooks"            , "QuickBooks.LBL_MANAGE_QUICKBOOKS_TITLE"           , "QuickBooks.LBL_MANAGE_QUICKBOOKS"           , "DetailView"           )
+							, new AdminModule(L10n, "Twilio"                , "Twilio.LBL_TWILIO_SETTINGS"                       , "Twilio.LBL_TWILIO_SETTINGS_DESC"            , "ConfigView"           )
+							, new AdminModule(L10n, "Twilio"                , "Twilio.LBL_TWILIO_MESSAGES"                       , "Twilio.LBL_TWILIO_MESSAGES_DESC"            , "List"                 )
+							, new AdminModule(L10n, "OutboundSms"           , "OutboundSms.LBL_MANAGE_OUTBOUND_SMS"              , "OutboundSms.LBL_MANAGE_OUTBOUND_SMS_DESC"   , "List"                 , "InboundEmail.gif"   )
+							, new AdminModule(L10n, "HubSpot"               , "HubSpot.LBL_MANAGE_HUBSPOT_TITLE"                 , "HubSpot.LBL_MANAGE_HUBSPOT"                 , "DetailView"           , "HubSpot.png"        )
+							, new AdminModule(L10n, "iContact"              , "iContact.LBL_MANAGE_ICONTACT_TITLE"               , "iContact.LBL_MANAGE_ICONTACT"               , "DetailView"           , "iContact.png"       )
+							, new AdminModule(L10n, "ConstantContact"       , "ConstantContact.LBL_MANAGE_CONSTANTCONTACT_TITLE" , "ConstantContact.LBL_MANAGE_CONSTANTCONTACT" , "DetailView"           , "ConstantContact.png")
+							, new AdminModule(L10n, "Marketo"               , "Marketo.LBL_MANAGE_MARKETO_TITLE"                 , "Marketo.LBL_MANAGE_MARKETO"                 , "DetailView"           , "Marketo.png"        )
+							, new AdminModule(L10n, "MailChimp"             , "MailChimp.LBL_MANAGE_MAILCHIMP_TITLE"             , "MailChimp.LBL_MANAGE_MAILCHIMP"             , "DetailView"           , "MailChimp.png"      )
+							, new AdminModule(L10n, "CurrencyLayer"         , "CurrencyLayer.LBL_MANAGE_CURRENCYLAYER_TITLE"     , "CurrencyLayer.LBL_MANAGE_CURRENCYLAYER"     , "DetailView"           , "CurrencyLayer.png"  )
+							, new AdminModule(L10n, "GetResponse"           , "GetResponse.LBL_MANAGE_GETRESPONSE_TITLE"         , "GetResponse.LBL_MANAGE_GETRESPONSE"         , "DetailView"           , "GetResponse.png"    )
+							, new AdminModule(L10n, "Pardot"                , "Pardot.LBL_MANAGE_PARDOT_TITLE"                   , "Pardot.LBL_MANAGE_PARDOT"                   , "DetailView"           , "Pardot.png"         )
+							, new AdminModule(L10n, "Watson"                , "Watson.LBL_MANAGE_WATSON_TITLE"                   , "Watson.LBL_MANAGE_WATSON"                   , "DetailView"           , "Watson.png"         )
+							, new AdminModule(L10n, "PhoneBurner"           , "PhoneBurner.LBL_MANAGE_PHONEBURNER_TITLE"         , "PhoneBurner.LBL_MANAGE_PHONEBURNER"         , "DetailView"           , "PhoneBurner.png"    )
+							};
+							BuildAdminModules(L10n, objs, "CloudView", "Administration.LBL_CLOUD_SERVICES_TITLE", arrCloudView);
 							break;
 						}
 					}
@@ -2544,7 +2614,8 @@ namespace SplendidWebApi.Controllers
 				// 11/11/2019 Paul.  A null module means this is a blank. 
 				if ( sModuleName == null )
 					modules.Add(module);
-				bool bValid = Sql.ToBoolean(Application["Modules." + sModuleName + ".Valid"]);
+				// 06/10/2023 Paul.  We want to allow SystemCheck. 
+				bool bValid = Sql.ToBoolean(Application["Modules." + sModuleName + ".Valid"]) || sModuleName == "SystemCheck";
 				if ( bValid && Security.AdminUserAccess(sModuleName, "edit") >= 0 )
 				{
 					if ( module.MODULE_NAME == "Users" || sModuleName == "SystemCheck" || sModuleName == "Administration" )
@@ -2699,6 +2770,8 @@ namespace SplendidWebApi.Controllers
 			
 			// 05/17/2019 Paul.  Return the modules so that we don't need a separate request for it later. 
 			Dictionary<string, object> CONFIG = SplendidCache.GetAllConfig();
+			// 06/10/2023 Paul.  Core app does not support classic UI. 
+			CONFIG["disable_admin_classic"] = true;
 			results.Add("CONFIG", CONFIG);
 			
 			Dictionary<string, int> dictModuleTabOrder = new Dictionary<string, int>();

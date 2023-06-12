@@ -634,6 +634,8 @@ namespace SplendidWebApi.Controllers
 			
 			// 05/17/2019 Paul.  Return the modules so that we don't need a separate request for it later. 
 			Dictionary<string, object> CONFIG = SplendidCache.GetAllConfig();
+			// 06/10/2023 Paul.  Core app does not support classic UI. 
+			CONFIG["disable_admin_classic"] = true;
 			results.Add("CONFIG", CONFIG);
 			
 			Dictionary<string, object> MODULES = SplendidCache.GetAllModules(lstMODULES);
@@ -1890,6 +1892,400 @@ namespace SplendidWebApi.Controllers
 			}
 			return dict;
 		}
+
+		// 06/17/2013 Paul.  Add support for GROUP BY. 
+		// 04/21/2017 Paul.  We need to return the total when using nTOP. 
+		// 05/21/2017 Paul.  HTML5 Dashboard requires aggregates. 
+		// 08/01/2019 Paul.  We need a ListView and EditView flags for the Rest Client. 
+		// 09/09/2019 Paul.  Send duplicate filter info. 
+		// 10/26/2019 Paul.  Return the SQL to the React Client. 
+		// 12/03/2019 Paul.  The React Client needs access to archive data. 
+		// 12/16/2019 Paul.  Moved GetTable to ~/_code/RestUtil.cs
+
+		[HttpGet("[action]")]
+		[ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> GetModuleStream([FromQuery] string ModuleName, [FromQuery] Guid ID, [FromQuery] bool RecentActivity)
+		{
+			if ( Sql.IsEmptyString(ModuleName) )
+				throw(new Exception("The module name must be specified."));
+			string sTABLE_NAME = Sql.ToString(Application["Modules." + ModuleName + ".TableName"]);
+			// 08/23/2019 Paul.  ActivityStream does not have a table name and is not marked as stream enabled. 
+			if ( ModuleName == "ActivityStream" )
+				sTABLE_NAME = "vwACTIVITY_STREAMS";
+			if ( Sql.IsEmptyString(sTABLE_NAME) )
+				throw(new Exception("Unknown module: " + ModuleName));
+			if ( ModuleName != "ActivityStream" && (!Sql.ToBoolean(Application["Modules." + ModuleName + ".StreamEnabled"]) || sTABLE_NAME == "USERS") )
+				throw(new Exception("Module is not stream enabled: " + ModuleName));
+			// 08/22/2011 Paul.  Add admin control to REST API. 
+			int nACLACCESS = Security.GetUserAccess(ModuleName, "list");
+			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + ModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
+			{
+				L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
+				// 09/06/2017 Paul.  Include module name in error. 
+				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + Sql.ToString(ModuleName)));
+			}
+			
+			int    nSKIP     = Sql.ToInteger(Request.Query["$skip"   ]);
+			int    nTOP      = Sql.ToInteger(Request.Query["$top"    ]);
+			string sFILTER   = Sql.ToString (Request.Query["$filter" ]);
+			// 08/03/2011 Paul.  We need a way to filter the columns so that we can be efficient. 
+			string sSELECT   = Sql.ToString (Request.Query["$select" ]);
+			
+			Regex r = new Regex(@"[^A-Za-z0-9_]");
+			// 10/19/2016 Paul.  We need to filter out quoted strings. 
+			string sFILTER_KEYWORDS = Sql.SqlFilterLiterals(sFILTER);
+			sFILTER_KEYWORDS = (" " + r.Replace(sFILTER_KEYWORDS, " ") + " ").ToLower();
+			// 10/19/2016 Paul.  Add more rules to allow select keyword to be part of the contents. 
+			// We do this to allow Full-Text Search, which is implemented as a sub-query. 
+			int nSelectIndex     = sFILTER_KEYWORDS.IndexOf(" select ");
+			int nFromIndex       = sFILTER_KEYWORDS.IndexOf(" from ");
+			// 11/18/2019 Paul.  Remove all support for subqueries now that we support Post with search values. 
+			//int nContainsIndex   = sFILTER_KEYWORDS.IndexOf(" contains ");
+			//int nConflictedIndex = sFILTER_KEYWORDS.IndexOf(" _remote_conflicted ");
+			//// 07/26/2018 Paul.  Allow a normalized phone search that used the special phone tables. 
+			//int nPhoneTableIndex = sFILTER_KEYWORDS.IndexOf(" vwphone_numbers_");
+			//int nNormalizeIndex  = sFILTER_KEYWORDS.IndexOf(" normalized_number ");
+			if ( nSelectIndex >= 0 && nFromIndex > nSelectIndex )
+			{
+				//if ( !(nContainsIndex > nFromIndex || nConflictedIndex > nFromIndex || (nPhoneTableIndex > nFromIndex && nNormalizeIndex > nPhoneTableIndex )) )
+					throw(new Exception("Subqueries are not allowed."));
+			}
+
+			UniqueStringCollection arrSELECT = new UniqueStringCollection();
+			sSELECT = sSELECT.Replace(" ", "");
+			if ( !Sql.IsEmptyString(sSELECT) )
+			{
+				foreach ( string s in sSELECT.Split(',') )
+				{
+					string sColumnName = r.Replace(s, "");
+					if ( !Sql.IsEmptyString(sColumnName) )
+						arrSELECT.Add(sColumnName);
+				}
+			}
+			// 08/23/2019 Paul.  Add standard stream fields. 
+			arrSELECT.Add("ID"                   );
+			arrSELECT.Add("AUDIT_ID"             );
+			arrSELECT.Add("STREAM_DATE"          );
+			arrSELECT.Add("STREAM_ACTION"        );
+			arrSELECT.Add("STREAM_COLUMNS"       );
+			arrSELECT.Add("STREAM_RELATED_ID"    );
+			arrSELECT.Add("STREAM_RELATED_MODULE");
+			arrSELECT.Add("STREAM_RELATED_NAME"  );
+			arrSELECT.Add("NAME"                 );
+			arrSELECT.Add("CREATED_BY_ID"        );
+			arrSELECT.Add("CREATED_BY"           );
+			arrSELECT.Add("CREATED_BY_PICTURE"   );
+			arrSELECT.Add("ASSIGNED_USER_ID"     );
+			string sORDER_BY = " order by STREAM_DATE desc, STREAM_VERSION desc";
+			
+			// 06/17/2013 Paul.  Add support for GROUP BY. 
+			// 04/21/2017 Paul.  We need to return the total when using nTOP. 
+			long lTotalCount = 0;
+			// 05/21/2017 Paul.  HTML5 Dashboard requires aggregates. 
+			// 08/01/2019 Paul.  We need a ListView and EditView flags for the Rest Client. 
+			// 10/26/2019 Paul.  Return the SQL to the React Client. 
+			StringBuilder sbDumpSQL = new StringBuilder();
+			DataTable dt = GetStream(sTABLE_NAME, nSKIP, nTOP, sFILTER, sORDER_BY, arrSELECT, Sql.ToGuid(ID), ref lTotalCount, Sql.ToBoolean(RecentActivity), sbDumpSQL);
+			
+			string sBaseURI = Request.Scheme + "://" + Request.Host.Host + Request.Path.Value.Replace("/GetModuleStream", "/GetModuleItem");
+
+			// 04/21/2017 Paul.  We need to return the total when using nTOP. 
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
+			Dictionary<string, object> dictResponse = RestUtil.ToJson(sBaseURI, ModuleName, dt, T10n);
+			dictResponse.Add("__total", lTotalCount);
+			// 10/26/2019 Paul.  Return the SQL to the React Client. 
+			if ( Sql.ToBoolean(Application["CONFIG.show_sql"]) )
+			{
+				dictResponse.Add("__sql", sbDumpSQL.ToString());
+			}
+			return dictResponse;
+		}
+
+		// 10/26/2019 Paul.  Return the SQL to the React Client. 
+		private DataTable GetStream(string sTABLE_NAME, int nSKIP, int nTOP, string sFILTER, string sORDER_BY, UniqueStringCollection arrSELECT, Guid gITEM_ID, ref long lTotalCount, bool bRecentActivity, StringBuilder sbDumpSQL)
+		{
+			// 05/19/2018 Paul.  Capture the last command for error tracking. 
+			string sLastCommand = String.Empty;
+			DataTable dt = null;
+			try
+			{
+				if ( Security.IsAuthenticated() )
+				{
+					string sMATCH_NAME = String.Empty;
+					SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+					Regex r = new Regex(@"[^A-Za-z0-9_]");
+					sTABLE_NAME = r.Replace(sTABLE_NAME, "");
+					using ( IDbConnection con = dbf.CreateConnection() )
+					{
+						con.Open();
+						// 06/03/2011 Paul.  Cache the Rest Table data. 
+						using ( DataTable dtSYNC_TABLES = SplendidCache.RestTables(sTABLE_NAME, false) )
+						{
+							string sSQL = String.Empty;
+							if ( dtSYNC_TABLES != null && dtSYNC_TABLES.Rows.Count > 0 )
+							{
+								DataRow rowSYNC_TABLE = dtSYNC_TABLES.Rows[0];
+								string sMODULE_NAME         = Sql.ToString (rowSYNC_TABLE["MODULE_NAME"        ]);
+								string sVIEW_NAME           = Sql.ToString (rowSYNC_TABLE["VIEW_NAME"          ]);
+								if ( sMODULE_NAME != "ActivityStream" )
+									sVIEW_NAME += "_STREAM";
+
+								if ( sMODULE_NAME == "ActivityStream" )
+									arrSELECT.Add("MODULE_NAME");
+								else
+									arrSELECT.Add("\'" + sMODULE_NAME + "\' as MODULE_NAME");
+								foreach ( string sColumnName in arrSELECT )
+								{
+									if ( Sql.IsEmptyString(sSQL) )
+										sSQL += "select " + sVIEW_NAME + "." + sColumnName + ControlChars.CrLf;
+									else if ( sColumnName.ToLower().Contains(" as ") )
+										sSQL += "     , " + sColumnName + ControlChars.CrLf;
+									else
+										sSQL += "     , " + sVIEW_NAME + "." + sColumnName + ControlChars.CrLf;
+								}
+								if ( !Sql.IsEmptyString(sMODULE_NAME) )
+									sSQL += Sql.AppendRecordLevelSecurityField(sMODULE_NAME, "list", sVIEW_NAME);
+								string sSelectSQL = sSQL;
+								sSQL += "  from " + sVIEW_NAME        + ControlChars.CrLf;
+								using ( IDbCommand cmd = con.CreateCommand() )
+								{
+									cmd.CommandText = sSQL;
+									cmd.CommandTimeout = 0;
+									// 02/14/2010 Paul.  GetTable should only require read-only access. 
+									// We were previously requiring Edit access, but that seems to be a high bar. 
+									if ( gITEM_ID != Guid.Empty )
+									{
+										Security.Filter(cmd, sMODULE_NAME, "list");
+										Sql.AppendParameter(cmd, gITEM_ID, "ID");
+									}
+									else
+									{
+										List<string> arrStreamModules = SplendidCache.StreamModulesArray(Security.USER_ID);
+										Security.Filter(cmd, arrStreamModules.ToArray(), "list", "ASSIGNED_USER_ID", "STREAM_RELATED_MODULE");
+										string sASSIGNEDPlaceholder = Sql.NextPlaceholder(cmd, "ASSIGNED_USER_ID");
+										cmd.CommandText += "   and (  CREATED_BY_ID     = @CREATED_BY_ID   " + ControlChars.CrLf;
+										cmd.CommandText += "        or ASSIGNED_USER_ID = @" + sASSIGNEDPlaceholder + ControlChars.CrLf;
+										cmd.CommandText += "        or ID in (select FAVORITE_RECORD_ID     from vwSUGARFAVORITES where FAVORITE_USER_ID     = @FAVORITE_USER_ID    " + (sMODULE_NAME == "ActivityStream" ? String.Empty : " and FAVORITE_MODULE          = @FAVORITE_MODULE         ") + ")" + ControlChars.CrLf;
+										cmd.CommandText += "        or ID in (select SUBSCRIPTION_PARENT_ID from vwSUBSCRIPTIONS  where SUBSCRIPTION_USER_ID = @SUBSCRIPTION_USER_ID" + (sMODULE_NAME == "ActivityStream" ? String.Empty : " and SUBSCRIPTION_PARENT_TYPE = @SUBSCRIPTION_PARENT_TYPE") + ")" + ControlChars.CrLf;
+										cmd.CommandText += "       )" + ControlChars.CrLf;
+										Sql.AddParameter(cmd, "@CREATED_BY_ID"           , Security.USER_ID);
+										Sql.AddParameter(cmd, "@" + sASSIGNEDPlaceholder, Security.USER_ID);
+										Sql.AddParameter(cmd, "@FAVORITE_USER_ID"        , Security.USER_ID);
+										if ( sMODULE_NAME != "ActivityStream" )
+											Sql.AddParameter(cmd, "@FAVORITE_MODULE"         , sMODULE_NAME       );
+										Sql.AddParameter(cmd, "@SUBSCRIPTION_USER_ID"    , Security.USER_ID);
+										if ( sMODULE_NAME != "ActivityStream" )
+											Sql.AddParameter(cmd, "@SUBSCRIPTION_PARENT_TYPE", sMODULE_NAME       );
+										if ( bRecentActivity )
+										{
+											int nRecentActivityDays = Sql.ToInteger(Application["CONFIG.ActivityStream.RecentActivityDays"]);
+											if ( nRecentActivityDays == 0 )
+												nRecentActivityDays = 7;
+											cmd.CommandText += "   and STREAM_DATE > @STREAM_DATE" + ControlChars.CrLf;
+											Sql.AddParameter(cmd, "@STREAM_DATE", DateTime.Now.AddDays(-nRecentActivityDays));
+										}
+									}
+									if ( !Sql.IsEmptyString(sFILTER) )
+									{
+										// 03/06/2019 Paul.  Move ConvertODataFilter to Sql so that it can be used in the Admin REST API. 
+										// 04/01/2020 Paul.  Move json utils to RestUtil. 
+										string sSQL_FILTER = RestUtil.ConvertODataFilter(sFILTER, cmd);
+										cmd.CommandText += "   and (" + sSQL_FILTER + ")" + ControlChars.CrLf;
+									}
+									Debug.WriteLine(Sql.ExpandParameters(cmd));
+
+									using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+									{
+										((IDbDataAdapter)da).SelectCommand = cmd;
+										// 11/08/2009 Paul.  The table name is required in order to serialize the DataTable. 
+										dt = new DataTable(sTABLE_NAME);
+										if ( nTOP > 0 )
+										{
+											lTotalCount = -1;
+											// 04/21/2017 Paul.  We need to return the total when using nTOP. 
+											//string sSelectSQL = sSQL;
+											if ( cmd.CommandText.StartsWith(sSelectSQL) )
+											{
+												string sOriginalSQL = cmd.CommandText;
+												cmd.CommandText = "select count(*) " + ControlChars.CrLf + cmd.CommandText.Substring(sSelectSQL.Length);
+												lTotalCount = Sql.ToLong(cmd.ExecuteScalar());
+												cmd.CommandText = sOriginalSQL;
+											}
+											if ( nSKIP > 0 )
+											{
+												int nCurrentPageIndex = nSKIP / nTOP;
+												// 06/17/2103 Paul.  We cannot page a group result. 
+												Sql.PageResults(cmd, sTABLE_NAME, sORDER_BY, nCurrentPageIndex, nTOP);
+												// 05/19/2018 Paul.  Capture the last command for error tracking. 
+												sLastCommand = Sql.ExpandParameters(cmd);
+												da.Fill(dt);
+											}
+											else
+											{
+												// 06/17/2013 Paul.  Add support for GROUP BY. 
+												cmd.CommandText += sORDER_BY;
+												using ( DataSet ds = new DataSet() )
+												{
+													ds.Tables.Add(dt);
+													// 05/19/2018 Paul.  Capture the last command for error tracking. 
+													sLastCommand = Sql.ExpandParameters(cmd);
+													da.Fill(ds, 0, nTOP, sTABLE_NAME);
+												}
+											}
+										}
+										else
+										{
+											cmd.CommandText += sORDER_BY;
+											// 05/19/2018 Paul.  Capture the last command for error tracking. 
+											sLastCommand = Sql.ExpandParameters(cmd);
+											da.Fill(dt);
+											// 04/21/2017 Paul.  We need to return the total when using nTOP. 
+											lTotalCount = dt.Rows.Count;
+										}
+										// 06/06/2017 Paul.  Make it easy to dump the SQL. 
+										// 10/26/2019 Paul.  Return the SQL to the React Client. 
+										string sDumbSQL = Sql.ExpandParameters(cmd);
+										sbDumpSQL.Append(sDumbSQL);
+#if DEBUG
+										//Debug.WriteLine(sDumbSQL);
+#endif
+										// 01/18/2010 Paul.  Apply ACL Field Security. 
+										// 02/01/2010 Paul.  System tables may not have a valid Module name, so Field Security will not apply. 
+										if ( SplendidInit.bEnableACLFieldSecurity && !Sql.IsEmptyString(sMODULE_NAME) )
+										{
+											bool bApplyACL = false;
+											bool bASSIGNED_USER_ID_Exists = dt.Columns.Contains("ASSIGNED_USER_ID");
+											foreach ( DataRow row in dt.Rows )
+											{
+												Guid gASSIGNED_USER_ID = Guid.Empty;
+												if ( bASSIGNED_USER_ID_Exists )
+													gASSIGNED_USER_ID = Sql.ToGuid(row["ASSIGNED_USER_ID"]);
+												foreach ( DataColumn col in dt.Columns )
+												{
+													Security.ACL_FIELD_ACCESS acl = Security.GetUserFieldSecurity(sMODULE_NAME, col.ColumnName, gASSIGNED_USER_ID);
+													if ( !acl.IsReadable() )
+													{
+														row[col.ColumnName] = DBNull.Value;
+														bApplyACL = true;
+													}
+												}
+											}
+											if ( bApplyACL )
+												dt.AcceptChanges();
+										}
+									}
+								}
+							}
+							else
+							{
+								// 08/02/2019 Paul.  We want to see the error in the React Client. 
+								string sMessage = sTABLE_NAME + " cannot be accessed.";
+								SplendidError.SystemError(new StackTrace(true).GetFrame(0), sMessage);
+								throw(new Exception(sMessage));
+							}
+						}
+					}
+				}
+			}
+			catch(Exception ex)
+			{
+				// 12/01/2012 Paul.  We need a more descriptive error message. 
+				//SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+				string sMessage = "GetStream(" + sTABLE_NAME + ", " + sFILTER + ") " + ex.Message;
+				SplendidError.SystemMessage("Error", new StackTrace(true).GetFrame(0), sMessage);
+				// 05/19/2018 Paul.  Capture the last command for error tracking. 
+				if ( ex.Message.Contains("The server supports a maximum of 2100 parameters") )
+					SplendidError.SystemMessage("Error", new StackTrace(true).GetFrame(0), sLastCommand);
+				throw(new Exception(sMessage));
+			}
+			return dt;
+		}
+
+		[HttpPost("[action]")]
+		// 03/17/2020 Paul.  React Client needs the ability to create a Stream Post. 
+		public void InsertModuleStreamPost([FromBody] Dictionary<string, object> dict)
+		{
+			string sModuleName = Sql.ToString(Request.Query["ModuleName"]);
+			if ( Sql.IsEmptyString(sModuleName) )
+				throw(new Exception("The module name must be specified."));
+			int nACLACCESS = Security.GetUserAccess(sModuleName, "edit");
+			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + sModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
+			{
+				L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
+				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + sModuleName));
+			}
+			
+			string sTableName = Sql.ToString(Application["Modules." + sModuleName + ".TableName"]);
+			SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+			using ( IDbConnection con = dbf.CreateConnection() )
+			{
+				con.Open();
+				
+				using ( IDbTransaction trn = Sql.BeginTransaction(con) )
+				{
+					try
+					{
+						IDbCommand spSTREAM_InsertPost = SqlProcs.Factory(trn.Connection, "sp" + sTableName + "_STREAM_InsertPost");
+						IDbDataParameter parMODIFIED_USER_ID = Sql.FindParameter(spSTREAM_InsertPost, "@MODIFIED_USER_ID");
+						IDbDataParameter parASSIGNED_USER_ID = Sql.FindParameter(spSTREAM_InsertPost, "@ASSIGNED_USER_ID");
+						IDbDataParameter parTEAM_ID          = Sql.FindParameter(spSTREAM_InsertPost, "@TEAM_ID"         );
+						IDbDataParameter parNAME             = Sql.FindParameter(spSTREAM_InsertPost, "@NAME"            );
+						IDbDataParameter parRELATED_ID       = Sql.FindParameter(spSTREAM_InsertPost, "@RELATED_ID"      );
+						IDbDataParameter parRELATED_MODULE   = Sql.FindParameter(spSTREAM_InsertPost, "@RELATED_MODULE"  );
+						IDbDataParameter parRELATED_NAME     = Sql.FindParameter(spSTREAM_InsertPost, "@RELATED_NAME"    );
+						IDbDataParameter parID               = Sql.FindParameter(spSTREAM_InsertPost, "@ID"              );
+						Guid   gMODIFIED_USER_ID = Security.USER_ID;
+						// 09/28/2015 Paul.  We are not using the standard ASSIGNED_USER_ID layout field because we do not want to set the default to the current user. 
+						Guid   gASSIGNED_USER_ID = Guid.Empty;
+						Guid   gTEAM_ID          = Security.TEAM_ID;
+						string sNAME             = String.Empty;
+						Guid   gRELATED_ID       = Guid.Empty;
+						string sRELATED_MODULE   = String.Empty;
+						string sRELATED_NAME     = String.Empty;
+						Guid   gID               = Guid.Empty;
+
+						foreach ( string sColumnName in dict.Keys )
+						{
+							switch ( sColumnName )
+							{
+								case "USER_ID"         :  gASSIGNED_USER_ID = Sql.ToGuid  (dict[sColumnName]);  break;
+								case "NAME"            :  sNAME             = Sql.ToString(dict[sColumnName]);  break;
+								case "PARENT_ID"       :  gRELATED_ID       = Sql.ToGuid  (dict[sColumnName]);  break;
+								case "PARENT_TYPE"     :  sRELATED_MODULE   = Sql.ToString(dict[sColumnName]);  break;
+								//case "PARENT_NAME"     :  sRELATED_NAME     = Sql.ToString(dict[sColumnName]);  break;
+								case "ID"              :  gID               = Sql.ToGuid  (dict[sColumnName]);  break;
+							}
+						}
+						if ( !Sql.IsEmptyString(sRELATED_MODULE) && !Sql.IsEmptyGuid(gRELATED_ID) )
+							sRELATED_NAME = Modules.ItemName(sRELATED_MODULE, gRELATED_ID);
+						else
+							sRELATED_MODULE = String.Empty;
+						if ( sRELATED_MODULE.Length > parRELATED_MODULE.Size )
+							sRELATED_MODULE = sRELATED_MODULE.Substring(0, parRELATED_MODULE.Size);
+						if ( sRELATED_NAME.Length > parRELATED_NAME.Size )
+							sRELATED_NAME = sRELATED_NAME.Substring(0, parRELATED_NAME.Size);
+						parMODIFIED_USER_ID.Value = Sql.ToDBGuid  (gMODIFIED_USER_ID);
+						parASSIGNED_USER_ID.Value = Sql.ToDBGuid  (gASSIGNED_USER_ID);
+						parTEAM_ID         .Value = Sql.ToDBGuid  (gTEAM_ID         );
+						parNAME            .Value = Sql.ToDBString(sNAME            );
+						parRELATED_ID      .Value = Sql.ToDBGuid  (gRELATED_ID      );
+						parRELATED_MODULE  .Value = Sql.ToDBString(sRELATED_MODULE  );
+						parRELATED_NAME    .Value = Sql.ToDBString(sRELATED_NAME    );
+						parID              .Value = Sql.ToDBGuid  (gID              );
+						spSTREAM_InsertPost.Transaction = trn;
+						spSTREAM_InsertPost.ExecuteNonQuery();
+						trn.Commit();
+					}
+					catch(Exception ex)
+					{
+						trn.Rollback();
+						SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+						throw;
+					}
+				}
+			}
+		}
+		
 
 		// 05/15/2020 Paul.  The React Client needs to get the Edit fields for the EmailTemplates editor. 
 		[HttpGet("[action]")]

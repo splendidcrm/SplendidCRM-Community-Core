@@ -83,6 +83,11 @@ namespace SplendidCRM
 		{
 			if ( value != null )
 			{
+				// 06/09/2023 Paul.  Must have table name to serialize. 
+				if ( Sql.IsEmptyString(value.TableName) )
+				{
+					value.TableName = "[" + key + "]";
+				}
 				StringBuilder sb = new StringBuilder();
 				using ( StringWriter wtr = new StringWriter(sb, System.Globalization.CultureInfo.InvariantCulture) )
 				{

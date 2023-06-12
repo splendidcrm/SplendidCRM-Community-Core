@@ -3946,6 +3946,62 @@ namespace SplendidCRM
 			return dt;
 		}
 
+		public DataTable StreamModules(Guid gUSER_ID)
+		{
+			L10N L10n = new L10N(Session["USER_SETTINGS/CULTURE"] as string);
+			DataTable dt = memoryCache.Get(L10n.NAME + ".vwMODULES_Stream_ByUser_" + gUSER_ID.ToString()) as DataTable;
+			if ( dt == null )
+			{
+				try
+				{
+					DbProviderFactory dbf = DbProviderFactories.GetFactory();
+					using ( IDbConnection con = dbf.CreateConnection() )
+					{
+						con.Open();
+						string sSQL;
+						sSQL = "select MODULE_NAME             " + ControlChars.CrLf
+						     + "     , DISPLAY_NAME            " + ControlChars.CrLf
+						     + "  from vwMODULES_Stream_ByUser " + ControlChars.CrLf
+						     + " where USER_ID = @USER_ID      " + ControlChars.CrLf
+						     + " order by MODULE_NAME          " + ControlChars.CrLf;
+						using ( IDbCommand cmd = con.CreateCommand() )
+						{
+							cmd.CommandText = sSQL;
+							Sql.AddParameter(cmd, "@USER_ID", gUSER_ID);
+							using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+							{
+								((IDbDataAdapter)da).SelectCommand = cmd;
+								dt = new DataTable();
+								da.Fill(dt);
+								foreach ( DataRow row in dt.Rows )
+								{
+									row["DISPLAY_NAME"] = L10n.Term(Sql.ToString(row["DISPLAY_NAME"]));
+								}
+								memoryCache.Set(L10n.NAME + ".vwMODULES_Stream_ByUser_" + gUSER_ID.ToString(), dt, DefaultCacheExpiration());
+							}
+						}
+					}
+				}
+				catch(Exception ex)
+				{
+					SplendidError.SystemMessage("Error", new StackTrace(true).GetFrame(0), ex);
+				}
+			}
+			return dt;
+		}
+
+		public List<string> StreamModulesArray(Guid gUSER_ID)
+		{
+			List<string> arr = new List<string>();
+			DataTable dt = StreamModules(gUSER_ID);
+			foreach ( DataRow row in dt.Rows )
+			{
+				string sMODULE_NAME = Sql.ToString(row["MODULE_NAME"]);
+				arr.Add(sMODULE_NAME);
+			}
+			return arr;
+		}
+
 		// 10/05/2017 Paul.  Add Archive relationship view. 
 		public void ClearArchiveViewExists()
 		{

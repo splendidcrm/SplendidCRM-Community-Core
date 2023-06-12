@@ -38,6 +38,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Caching.Memory;
+using static SplendidCRM.SqlBuild;
 
 namespace SplendidCRM
 {
@@ -84,7 +85,7 @@ namespace SplendidCRM
 			this.XmlUtil             = XmlUtil            ;
 		}
 
-		private void InitAppURLs()
+		public void InitAppURLs()
 		{
 			if ( Sql.IsEmptyString(Application["imageURL"]) )
 			{
@@ -712,7 +713,12 @@ namespace SplendidCRM
 			//Debug.WriteLine("SplendidInit.InitApp");
 			try
 			{
-				InitAppURLs();
+				// 06/03/2023 Paul.  Move InitAppURLs() to Startup. 
+				//InitAppURLs();
+				// 08/01/2015 Paul.  The Microsoft Web Platform Installer is unable to deploy due to a timeout when applying the Build.sql file. 
+				// We cannot build the database until after InitAppURLs as the domain name may be needed for SplendidRegistry. 
+				// 06/03/2023 Paul.  Move BuildDatabase() to Startup so we can call InitApp when done. 
+				//SqlBuild.BuildDatabase();
 				// 03/06/2008 Paul.  We cannot log the application start until the the ServerName has been stored in the Application cache. 
 				// 04/22/2008 Paul.  Include the version in the system log.
 				// 02/10/2015 Paul.  There are a few initial items, but they are less than 20. 
