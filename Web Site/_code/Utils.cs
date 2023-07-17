@@ -49,19 +49,21 @@ namespace SplendidCRM
 		private HttpSessionState     Session            ;
 		private Security             Security           ;
 		private Sql                  Sql                ;
+		private L10N                 L10n               ;
 		private SqlProcs             SqlProcs           ;
 		private SplendidCache        SplendidCache      ;
 		private XmlUtil              XmlUtil            ;
 		private Crm.Modules          Modules            ;
 		private readonly ILogger<Utils> _logger;
 
-		public Utils(IWebHostEnvironment hostingEnvironment, IHttpContextAccessor httpContextAccessor, HttpSessionState Session, SplendidCache SplendidCache, XmlUtil XmlUtil, Crm.Modules Modules, ILogger<Utils> logger)
+		public Utils(IWebHostEnvironment hostingEnvironment, HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidCache SplendidCache, XmlUtil XmlUtil, Crm.Modules Modules, ILogger<Utils> logger)
 		{
 			this.hostingEnvironment  = hostingEnvironment ;
 			this.Session             = Session            ;
-			this.Security            = new Security(httpContextAccessor, Session);
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
+			this.Security            = Security           ;
+			this.L10n                = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
+			this.Sql                 = Sql                ;
+			this.SqlProcs            = SqlProcs           ;
 			this.SplendidCache       = SplendidCache      ;
 			this.XmlUtil             = XmlUtil            ;
 			this.Modules             = Modules            ;
@@ -202,7 +204,6 @@ namespace SplendidCRM
 			{
 				// 11/03/2021 Paul.  Utils calls may come from REST API and therefore will not have L10n in Current.Items. 
 				//L10N L10n = HttpContext.Current.Items["L10n"] as L10N;
-				L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 				throw(new Exception(L10n.Term(".LBL_TOO_MANY_RECORDS")));
 			}
 			
@@ -237,7 +238,6 @@ namespace SplendidCRM
 			{
 				// 11/03/2021 Paul.  Utils calls may come from REST API and therefore will not have L10n in Current.Items. 
 				//L10N L10n = HttpContext.Current.Items["L10n"] as L10N;
-				L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 				throw(new Exception(L10n.Term(".LBL_TOO_MANY_RECORDS")));
 			}
 			
@@ -292,7 +292,6 @@ namespace SplendidCRM
 					{
 						// 11/03/2021 Paul.  Utils calls may come from REST API and therefore will not have L10n in Current.Items. 
 						//L10N L10n = HttpContext.Current.Items["L10n"] as L10N;
-						L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 						throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
 					}
 				}
@@ -367,7 +366,6 @@ namespace SplendidCRM
 					{
 						// 11/03/2021 Paul.  Utils calls may come from REST API and therefore will not have L10n in Current.Items. 
 						//L10N L10n = HttpContext.Current.Items["L10n"] as L10N;
-						L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 						throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
 					}
 				}
@@ -1652,13 +1650,14 @@ namespace SplendidCRM
 		private DbProviderFactories  DbProviderFactories = new DbProviderFactories();
 		private HttpApplicationState Application = new HttpApplicationState();
 		private HttpSessionState     Session            ;
-		private Sql                  Sql                ;
 		private Security             Security           ;
+		private Sql                  Sql                ;
+		private L10N                 L10n               ;
 		private Utils                Utils              ;
 		private SplendidCache        SplendidCache      ;
 		private SplendidError        SplendidError      ;
 		private Crm.Modules          Modules            ;
-		private IBackgroundTaskQueue _taskQueue         ;
+		private IBackgroundTaskQueue taskQueue          ;
 
 		private Guid        gMODIFIED_USER_ID;
 		private int         nACLACCESS       ;
@@ -1668,16 +1667,17 @@ namespace SplendidCRM
 
 		public string LastError { get; set; }
 
-		public ArchiveUtils(HttpSessionState Session, Sql Sql, Security Security, Utils Utils, SplendidCache SplendidCache, SplendidError SplendidError, Crm.Modules Modules, IBackgroundTaskQueue taskQueue)
+		public ArchiveUtils(HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, Utils Utils, SplendidCache SplendidCache, SplendidError SplendidError, Crm.Modules Modules, IBackgroundTaskQueue taskQueue)
 		{
-			this.Sql                 = Sql                ;
 			this.Session             = Session            ;
 			this.Security            = Security           ;
+			this.L10n                = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
+			this.Sql                 = Sql                ;
 			this.Utils               = Utils              ;
 			this.SplendidCache       = SplendidCache      ;
 			this.SplendidError       = SplendidError      ;
 			this.Modules             = Modules            ;
-			this._taskQueue          = taskQueue          ;
+			this.taskQueue           = taskQueue          ;
 
 			this.LastError         = String.Empty;
 			this.gMODIFIED_USER_ID = Sql.ToGuid(Session["USER_ID"]);
@@ -1695,7 +1695,6 @@ namespace SplendidCRM
 			arrID[0] = gID.ToString();
 			// 03/03/2021 Paul.  When called from Rest service, Context.Items will not contain L10n. 
 			//L10N L10n = new L10N(this.sCULTURE);
-			L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 			if ( Utils.IsOfflineClient )
 				throw(new Exception(L10n.Term(".ERR_ARCHIVE_OFFLINE_CLIENT")));
 			return MoveData(sModuleName, arrID);
@@ -1709,7 +1708,6 @@ namespace SplendidCRM
 			this.nACLACCESS = Security.GetUserAccess(this.ModuleName, "archive");
 			// 03/03/2021 Paul.  When called from Rest service, Context.Items will not contain L10n. 
 			//L10N L10n = new L10N(this.sCULTURE);
-			L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 			if ( Utils.IsOfflineClient )
 				throw(new Exception(L10n.Term(".ERR_ARCHIVE_OFFLINE_CLIENT")));
 			if ( arrID != null )
@@ -1719,7 +1717,7 @@ namespace SplendidCRM
 				bool bIncludeActivities = IncludeActivities(sModuleName);
 				if ( arrID.Length > this.nMaxBulkCount || (arrID.Length > 10 && bIncludeActivities) )
 				{
-					_taskQueue.QueueBackgroundWorkItemAsync(this.MoveDataInternal);
+					taskQueue.QueueBackgroundWorkItemAsync(this.MoveDataInternal);
 					this.LastError = L10n.Term(".LBL_BACKGROUND_OPERATION");
 				}
 				else
@@ -1842,7 +1840,6 @@ namespace SplendidCRM
 			arrID[0] = gID.ToString();
 			// 03/03/2021 Paul.  When called from Rest service, Context.Items will not contain L10n. 
 			//L10N L10n = new L10N(this.sCULTURE);
-			L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 			if ( Utils.IsOfflineClient )
 				throw(new Exception(L10n.Term(".ERR_ARCHIVE_OFFLINE_CLIENT")));
 			return RecoverData(sModuleName, arrID);
@@ -1856,7 +1853,6 @@ namespace SplendidCRM
 			this.nACLACCESS = Security.GetUserAccess(this.ModuleName, "archive");
 			// 03/03/2021 Paul.  When called from Rest service, Context.Items will not contain L10n. 
 			//L10N L10n = new L10N(this.sCULTURE);
-			L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 			if ( Utils.IsOfflineClient )
 				throw(new Exception(L10n.Term(".ERR_ARCHIVE_OFFLINE_CLIENT")));
 			if ( arrID != null )
@@ -1866,7 +1862,7 @@ namespace SplendidCRM
 				bool bIncludeActivities = IncludeActivities(sModuleName);
 				if ( arrID.Length > this.nMaxBulkCount || (arrID.Length > 10 && bIncludeActivities) )
 				{
-					_taskQueue.QueueBackgroundWorkItemAsync(this.RecoverDataInternal);
+					taskQueue.QueueBackgroundWorkItemAsync(this.RecoverDataInternal);
 					this.LastError = L10n.Term(".LBL_BACKGROUND_OPERATION");
 				}
 				else

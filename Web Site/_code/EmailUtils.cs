@@ -68,22 +68,34 @@ namespace SplendidCRM
 		private SplendidCache        SplendidCache      ;
 		private MimeUtils            MimeUtils          ;
 		private Utils                Utils              ;
-		private SplendidCRM.Crm.Modules          Modules          ;
-		private SplendidCRM.Crm.Config           Config           = new SplendidCRM.Crm.Config();
+		private ActiveDirectory      ActiveDirectory    ;
+		private SyncError            SyncError          ;
+		private SplendidCRM.Crm.Config                Config           = new SplendidCRM.Crm.Config();
+		private SplendidCRM.Crm.Modules               Modules          ;
+		private SplendidCRM.Crm.NoteAttachments       NoteAttachments ;
+		private Spring.Social.Office365.Office365Sync Office365Sync    ;
+		private ExchangeUtils        ExchangeUtils      ;
+		private GoogleApps           GoogleApps         ;
 
-		public EmailUtils(IHttpContextAccessor httpContextAccessor, IMemoryCache memoryCache, HttpSessionState Session, SplendidError SplendidError, SplendidCache SplendidCache, MimeUtils MimeUtils, Utils Utils, SplendidCRM.Crm.Modules Modules)
+		public EmailUtils(IHttpContextAccessor httpContextAccessor, IMemoryCache memoryCache, HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, SplendidCache SplendidCache, MimeUtils MimeUtils, Utils Utils, ActiveDirectory ActiveDirectory, SyncError SyncError, SplendidCRM.Crm.Modules Modules, SplendidCRM.Crm.NoteAttachments NoteAttachments, Spring.Social.Office365.Office365Sync Office365Sync, ExchangeUtils ExchangeUtils, GoogleApps GoogleApps)
 		{
 			this.memoryCache         = memoryCache        ;
 			this.Context             = httpContextAccessor.HttpContext;
 			this.Session             = Session            ;
-			this.Security            = new Security(httpContextAccessor, Session);
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
+			this.Security            = Security           ;
+			this.Sql                 = Sql                ;
+			this.SqlProcs            = SqlProcs           ;
 			this.SplendidError       = SplendidError      ;
 			this.SplendidCache       = SplendidCache      ;
 			this.MimeUtils           = MimeUtils          ;
 			this.Utils               = Utils              ;
 			this.Modules             = Modules            ;
+			this.ActiveDirectory     = ActiveDirectory    ;
+			this.SyncError           = SyncError          ;
+			this.NoteAttachments     = NoteAttachments    ;
+			this.Office365Sync       = Office365Sync      ;
+			this.ExchangeUtils       = ExchangeUtils      ;
+			this.GoogleApps          = GoogleApps         ;
 		}
 
 		// 01/20/2017 Paul.  Add support for Office365 and GoogleApps. 
@@ -820,7 +832,7 @@ namespace SplendidCRM
 							SplendidMailClient client = null;
 							if ( String.Compare(sMAIL_SENDTYPE, "Office365", true) == 0 )
 							{
-								client = new SplendidMailOffice365(Application, gOAUTH_TOKEN_ID);
+								client = new SplendidMailOffice365(Office365Sync, gOAUTH_TOKEN_ID);
 								sMAIL_TYPE_USER_INFO = "Office365: " + gOAUTH_TOKEN_ID.ToString();
 							}
 							// 01/31/2017 Paul.  Add support for Exchange using Username/Password. 
@@ -831,12 +843,12 @@ namespace SplendidCRM
 								// 02/06/2017 Paul.  Password must be decrypted before use. 
 								if ( !Sql.IsEmptyString(sMAIL_SMTPPASS) )
 									sMAIL_SMTPPASS = Security.DecryptPassword(sMAIL_SMTPPASS);
-								client = new SplendidMailExchangePassword(Application, sSERVER_URL, sMAIL_SMTPUSER, sMAIL_SMTPPASS);
+								client = new SplendidMailExchangePassword(sSERVER_URL, sMAIL_SMTPUSER, sMAIL_SMTPPASS);
 								sMAIL_TYPE_USER_INFO = "Exchange-Password: " + sMAIL_SMTPUSER;
 							}
 							else if ( String.Compare(sMAIL_SENDTYPE, "GoogleApps", true) == 0 )
 							{
-								client = new SplendidMailGmail(Application, gOAUTH_TOKEN_ID);
+								client = new SplendidMailGmail(GoogleApps, gOAUTH_TOKEN_ID);
 								sMAIL_TYPE_USER_INFO = "GoogleApps: " + gOAUTH_TOKEN_ID.ToString();
 							}
 							// 07/19/2010 Paul.  If the user has his own login, then send using it. 
@@ -860,7 +872,7 @@ namespace SplendidCRM
 							{
 								// 07/18/2013 Paul.  Add support for multiple outbound emails. 
 								// 01/17/2017 Paul.  New SplendidMailClient object to encapsulate SMTP, Exchange and Google mail. 
-								client = SplendidMailClient.CreateMailClient(Application, memoryCache, Security, SplendidError);
+								client = SplendidMailClient.CreateMailClient(Application, memoryCache, Security, SplendidError, GoogleApps, Office365Sync);
 								sMAIL_TYPE_USER_INFO = "CONFIG.smtpuser: " + Sql.ToString (Application["CONFIG.smtpuser"]);
 							}
 
@@ -1075,7 +1087,7 @@ namespace SplendidCRM
 					
 					// 10/04/2008 Paul.  Move SmtpClient code to a shared function. 
 					// 01/17/2017 Paul.  New SplendidMailClient object to encapsulate SMTP, Exchange and Google mail. 
-					SplendidMailClient client = SplendidMailClient.CreateMailClient(Application, memoryCache, Security, SplendidError);
+					SplendidMailClient client = SplendidMailClient.CreateMailClient(Application, memoryCache, Security, SplendidError, GoogleApps, Office365Sync);
 
 					// 07/16/2008 Paul.  We can't use L10N because it requires a valid Application object. 
 					//L10N L10n = new L10N(SplendidDefaults.Culture(Application));
@@ -1618,7 +1630,8 @@ namespace SplendidCRM
 											sSERVER_URL = "https://outlook.office365.com";
 										if ( Sql.IsEmptyString(sMAILBOX) )
 											sMAILBOX = "Inbox";
-										DataTable dt = Office365Utils.GetFolderMessages(Context, String.Empty, String.Empty, gMAILBOX_ID, sMAILBOX, bONLY_SINCE, sEXCHANGE_WATERMARK);
+										Office365Utils Office365Utils = new Office365Utils(Session, Security, Sql, SqlProcs, SplendidError, MimeUtils, ActiveDirectory, SyncError, NoteAttachments, Office365Sync);
+										DataTable dt = Office365Utils.GetFolderMessages(String.Empty, String.Empty, gMAILBOX_ID, sMAILBOX, bONLY_SINCE, sEXCHANGE_WATERMARK);
 										// 11/01/2022 Paul.  Log busy so we can monitor status. 
 										if ( bVerbose && dt != null )
 										{
@@ -1639,7 +1652,7 @@ namespace SplendidCRM
 											string sFROM_ADDR  = String.Empty;
 											bool bIS_READ      = false;
 											int  nSIZE         = 0;
-											Office365Utils.GetMessage(Context, gMAILBOX_ID, sUNIQUE_ID, ref sNAME, ref sFROM_ADDR, ref bIS_READ, ref nSIZE);
+											Office365Utils.GetMessage(gMAILBOX_ID, sUNIQUE_ID, ref sNAME, ref sFROM_ADDR, ref bIS_READ, ref nSIZE);
 											bool bMailerDaemon = (sFROM_ADDR.IndexOf("mailer-daemon@") >= 0 || sFROM_ADDR.IndexOf("postmaster@") >= 0);
 											if ( !Sql.IsEmptyString(sNAME) && !bMailerDaemon )
 											{
@@ -1657,11 +1670,11 @@ namespace SplendidCRM
 													if ( Sql.ToInteger(cmdExistingEmails.ExecuteScalar()) == 0 )
 													{
 														// 01/28/2017 Paul.  Use new GROUP_TEAM_ID value associated with InboundEmail record. 
-														Office365Utils.ImportInboundEmail(Context, con, gMAILBOX_ID, sMAILBOX_TYPE, gGROUP_ID, gGROUP_TEAM_ID, sUNIQUE_ID, sUNIQUE_MESSAGE_ID, sEMAIL_USER);
+														Office365Utils.ImportInboundEmail(con, gMAILBOX_ID, sMAILBOX_TYPE, gGROUP_ID, gGROUP_TEAM_ID, sUNIQUE_ID, sUNIQUE_MESSAGE_ID, sEMAIL_USER);
 													}
 													if ( !bMARK_READ && bIS_READ )
 													{
-														Office365Utils.MarkAsUnread(Context, gMAILBOX_ID, sUNIQUE_ID);
+														Office365Utils.MarkAsUnread(gMAILBOX_ID, sUNIQUE_ID);
 													}
 													// 01/28/2017 Paul.  The Pull.Watermark changes with each call to GetEvents. 
 													// We need to make sure to update the database value any time we notice a change. 
@@ -1696,7 +1709,7 @@ namespace SplendidCRM
 									{
 										if ( Sql.IsEmptyString(sMAILBOX) )
 											sMAILBOX = "Inbox";
-										DataTable dt = ExchangeUtils.GetFolderMessages(Context, sEMAIL_USER, sEMAIL_PASSWORD, gMAILBOX_ID, sMAILBOX, bONLY_SINCE, sEXCHANGE_WATERMARK);
+										DataTable dt = ExchangeUtils.GetFolderMessages(sEMAIL_USER, sEMAIL_PASSWORD, gMAILBOX_ID, sMAILBOX, bONLY_SINCE, sEXCHANGE_WATERMARK);
 										foreach ( DataRow row in dt.Rows )
 										{
 											// 12/12/2017 Paul.  Azure is dropping the connection, but continuing the loop and generating lots of errors.  Just exit and wait to try again. 
@@ -1712,7 +1725,7 @@ namespace SplendidCRM
 											string sFROM_ADDR  = String.Empty;
 											bool bIS_READ      = false;
 											int  nSIZE         = 0;
-											ExchangeUtils.GetMessage(Context, gMAILBOX_ID, sUNIQUE_ID, ref sNAME, ref sFROM_ADDR, ref bIS_READ, ref nSIZE);
+											ExchangeUtils.GetMessage(gMAILBOX_ID, sUNIQUE_ID, ref sNAME, ref sFROM_ADDR, ref bIS_READ, ref nSIZE);
 											bool bMailerDaemon = (sFROM_ADDR.IndexOf("mailer-daemon@") >= 0 || sFROM_ADDR.IndexOf("postmaster@") >= 0);
 											if ( !Sql.IsEmptyString(sNAME) && !bMailerDaemon )
 											{
@@ -1730,11 +1743,11 @@ namespace SplendidCRM
 													if ( Sql.ToInteger(cmdExistingEmails.ExecuteScalar()) == 0 )
 													{
 														// 01/28/2017 Paul.  Use new GROUP_TEAM_ID value associated with InboundEmail record. 
-														ExchangeUtils.ImportInboundEmail(Context, con, gMAILBOX_ID, sMAILBOX_TYPE, gGROUP_ID, gGROUP_TEAM_ID, sUNIQUE_ID, sUNIQUE_MESSAGE_ID);
+														ExchangeUtils.ImportInboundEmail(con, gMAILBOX_ID, sMAILBOX_TYPE, gGROUP_ID, gGROUP_TEAM_ID, sUNIQUE_ID, sUNIQUE_MESSAGE_ID);
 													}
 													if ( !bMARK_READ && bIS_READ )
 													{
-														ExchangeUtils.MarkAsUnread(Context, gMAILBOX_ID, sUNIQUE_ID);
+														ExchangeUtils.MarkAsUnread(gMAILBOX_ID, sUNIQUE_ID);
 													}
 													// 01/28/2017 Paul.  The Pull.Watermark changes with each call to GetEvents. 
 													// We need to make sure to update the database value any time we notice a change. 
@@ -1770,7 +1783,7 @@ namespace SplendidCRM
 											sSERVER_URL = "https://www.googleapis.com";
 										if ( Sql.IsEmptyString(sMAILBOX) )
 											sMAILBOX = "INBOX";
-										DataTable dt = GoogleApps.GetFolderMessages(Context, gMAILBOX_ID, sMAILBOX, bONLY_SINCE, nLAST_EMAIL_UID, -1);
+										DataTable dt = GoogleApps.GetFolderMessages(gMAILBOX_ID, sMAILBOX, bONLY_SINCE, nLAST_EMAIL_UID, -1);
 										foreach ( DataRow row in dt.Rows )
 										{
 											// 12/12/2017 Paul.  Azure is dropping the connection, but continuing the loop and generating lots of errors.  Just exit and wait to try again. 
@@ -1797,13 +1810,13 @@ namespace SplendidCRM
 													parMESSAGE_ID.Value = sUNIQUE_MESSAGE_ID;
 													if ( Sql.ToInteger(cmdExistingEmails.ExecuteScalar()) == 0 )
 													{
-														MimeMessage mm = GoogleApps.GetMimeMessage(Context, gMAILBOX_ID, sUNIQUE_ID);
+														MimeMessage mm = GoogleApps.GetMimeMessage(gMAILBOX_ID, sUNIQUE_ID);
 														// 01/28/2017 Paul.  Use new GROUP_TEAM_ID value associated with InboundEmail record. 
-														MimeUtils.ImportInboundEmail(Context, con, mm, gMAILBOX_ID, sMAILBOX_TYPE, gGROUP_ID, gGROUP_TEAM_ID, sUNIQUE_MESSAGE_ID);
+														MimeUtils.ImportInboundEmail(con, mm, gMAILBOX_ID, sMAILBOX_TYPE, gGROUP_ID, gGROUP_TEAM_ID, sUNIQUE_MESSAGE_ID);
 													}
 													if ( !bMARK_READ && !sLABELS.Contains("UNREAD") )
 													{
-														GoogleApps.MarkAsUnread(Context, gMAILBOX_ID, sUNIQUE_ID);
+														GoogleApps.MarkAsUnread(gMAILBOX_ID, sUNIQUE_ID);
 													}
 													// 05/24/2014 Paul.  We need to track the Last Email UID in order to support Only Since flag. 
 													nNEXT_EMAIL_UID = Sql.ToLong(row["INTERNAL_DATE"]);
@@ -1936,7 +1949,7 @@ namespace SplendidCRM
 																		// 01/13/2008 Paul.  Pull POP3 logic out of import function so that it can be reused by IMAP4 driver. 
 																		// 11/18/2008 Paul.  We must use the passed context as the current context is not available in a scheduled task. 
 																		// 01/28/2017 Paul.  Use new GROUP_TEAM_ID value associated with InboundEmail record. 
-																		MimeUtils.ImportInboundEmail(Context, con, mm, gMAILBOX_ID, sMAILBOX_TYPE, gGROUP_ID, gGROUP_TEAM_ID, sUNIQUE_MESSAGE_ID);
+																		MimeUtils.ImportInboundEmail(con, mm, gMAILBOX_ID, sMAILBOX_TYPE, gGROUP_ID, gGROUP_TEAM_ID, sUNIQUE_MESSAGE_ID);
 																	}
 																	// 05/23/2014 Paul.  The Mark Unread flag was not previously used. 
 																	// 07/10/2017 Paul.  MailKit uses different logic.  Use the RemoveFlags function. 
@@ -2052,7 +2065,7 @@ namespace SplendidCRM
 																	// 11/18/2008 Paul.  We must use the passed context as the current context is not available in a scheduled task. 
 																	// 07/19/2010 Paul.  Moved ImportInboundEmail to PopUtils. 
 																	// 01/28/2017 Paul.  Use new GROUP_TEAM_ID value associated with InboundEmail record. 
-																	MimeUtils.ImportInboundEmail(Context, con, mm, gMAILBOX_ID, sMAILBOX_TYPE, gGROUP_ID, gGROUP_TEAM_ID, sUNIQUE_MESSAGE_ID);
+																	MimeUtils.ImportInboundEmail(con, mm, gMAILBOX_ID, sMAILBOX_TYPE, gGROUP_ID, gGROUP_TEAM_ID, sUNIQUE_MESSAGE_ID);
 																}
 																if ( !bMARK_READ )
 																	pop.DeleteMessage(i);
@@ -2243,7 +2256,7 @@ namespace SplendidCRM
 				SendSmsActivityReminders();
 			}
 			// 09/16/2015 Paul.  Google notifications will also be processed in the email timer. 
-			GoogleSync.GoogleWebhook.ProcessAllNotifications(Context);
+			GoogleSync.GoogleWebhook.ProcessAllNotifications(SplendidError, SyncError);
 		}
 
 		// 12/25/2012 Paul.  Use a separate timer for email reminders as they are timely and cannot be stuck behind other scheduler tasks. 
@@ -2288,7 +2301,7 @@ namespace SplendidCRM
 							if ( dt.Rows.Count > 0 )
 							{
 								// 01/17/2017 Paul.  New SplendidMailClient object to encapsulate SMTP, Exchange and Google mail. 
-								SplendidMailClient client   = SplendidMailClient.CreateMailClient(Application, memoryCache, Security, SplendidError);
+								SplendidMailClient client   = SplendidMailClient.CreateMailClient(Application, memoryCache, Security, SplendidError, GoogleApps, Office365Sync);
 								string     sSiteURL         = Config.SiteURL();
 								string     sFromName        = Sql.ToString(Application["CONFIG.fromname"        ]);
 								string     sFromAddress     = Sql.ToString(Application["CONFIG.fromaddress"     ]);
@@ -2558,8 +2571,7 @@ namespace SplendidCRM
 												throw(new Exception(ex.Message, ex.InnerException));
 											}
 										}
-										// 04/30/2023 Paul.  TODO.  Add support for Twilio. 
-										//TwilioManager.SendText(Application, sFromNumber, sINVITEE_PHONE, sSubject);
+										TwilioManager.SendText(Application, sFromNumber, sINVITEE_PHONE, sSubject);
 									}
 									catch(Exception ex)
 									{
@@ -2607,7 +2619,7 @@ namespace SplendidCRM
 					if ( dt.Rows.Count > 0 )
 					{
 						// 01/17/2017 Paul.  New SplendidMailClient object to encapsulate SMTP, Exchange and Google mail. 
-						SplendidMailClient client   = SplendidMailClient.CreateMailClient(Application, memoryCache, Security, SplendidError);
+						SplendidMailClient client   = SplendidMailClient.CreateMailClient(Application, memoryCache, Security, SplendidError, GoogleApps, Office365Sync);
 						string     sSiteURL         = Config.SiteURL();
 						bool       bSendFromUser    = Sql.ToBoolean(Application["notify_send_from_assigning_user"]);
 						string     sFromName        = Sql.ToString (Application["CONFIG.fromname"                ]);

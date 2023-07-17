@@ -20,81 +20,48 @@
  * "Copyright (C) 2005-2011 SplendidCRM Software, Inc. All rights reserved."
  *********************************************************************************************************************/
 using System;
-using System.IO;
-using System.Xml;
-using System.Data;
-using System.Data.Common;
 using System.Text;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using System.Diagnostics;
 
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Authorization;
 
-using SplendidCRM;
-
-namespace SplendidWebApi.Controllers
+namespace SplendidCRM.Controllers.Administration.CurrencyLayer
 {
 	[Authorize]
+	[SplendidSessionAuthorize]
 	[ApiController]
 	//[Route("[controller]")]
 	[Route("Administration/CurrencyLayer/Rest.svc")]
 	//[Route("Rest.svc")]
-	public class CurrencyLayerRestController : ControllerBase
+	public class RestController : ControllerBase
 	{
 		public const string MODULE_NAME = "CurrencyLayer";
 
-		private IWebHostEnvironment  hostingEnvironment ;
-		private IMemoryCache         memoryCache        ;
-		private SplendidCRM.DbProviderFactories  DbProviderFactories = new SplendidCRM.DbProviderFactories();
 		private HttpApplicationState Application        = new HttpApplicationState();
-		private HttpSessionState     Session            ;
 		private Security             Security           ;
-		private Sql                  Sql                ;
 		private L10N                 L10n               ;
-		private Currency             Currency           = new Currency();
-		private SplendidCRM.TimeZone TimeZone           = new SplendidCRM.TimeZone();
-		private Utils                Utils              ;
-		private SqlProcs             SqlProcs           ;
 		private SplendidError        SplendidError      ;
-		private SplendidCache        SplendidCache      ;
-		private RestUtil             RestUtil           ;
 		private CurrencyUtils        CurrencyUtils      ;
-		private SplendidCRM.Crm.Modules          Modules          ;
-		private SplendidCRM.Crm.Config           Config           = new SplendidCRM.Crm.Config();
 
-		public CurrencyLayerRestController(IWebHostEnvironment hostingEnvironment, IMemoryCache memoryCache, HttpSessionState Session, Security Security, Utils Utils, SplendidError SplendidError, SplendidCache SplendidCache, RestUtil RestUtil, CurrencyUtils CurrencyUtils, SplendidCRM.Crm.Modules Modules)
+		public RestController(HttpSessionState Session, Security Security, SplendidError SplendidError, CurrencyUtils CurrencyUtils)
 		{
-			this.hostingEnvironment  = hostingEnvironment ;
-			this.memoryCache         = memoryCache        ;
-			this.Session             = Session            ;
 			this.Security            = Security           ;
-			this.L10n                = new L10N(Sql.ToString(Session["USER_LANG"]));
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
-			this.Utils               = Utils              ;
+			this.L10n                = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 			this.SplendidError       = SplendidError      ;
-			this.SplendidCache       = SplendidCache      ;
-			this.RestUtil            = RestUtil           ;
 			this.CurrencyUtils       = CurrencyUtils      ;
-			this.Modules             = Modules            ;
 		}
 
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
 		public string Test([FromBody] Dictionary<string, object> dict)
 		{
 			StringBuilder sbErrors = new StringBuilder();
 			try
 			{
-				L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 				// 03/09/2019 Paul.  Allow admin delegate to access admin api. 
-				if ( !Security.IsAuthenticated() || Security.AdminUserAccess(MODULE_NAME, "edit") < 0 )
+				if ( Security.AdminUserAccess(MODULE_NAME, "edit") < 0 )
 				{
 					throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
 				}
@@ -132,8 +99,7 @@ namespace SplendidWebApi.Controllers
 		{
 			try
 			{
-				L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-				if ( !Security.IsAuthenticated() || Security.AdminUserAccess(MODULE_NAME, "edit") < 0 )
+				if ( Security.AdminUserAccess(MODULE_NAME, "edit") < 0 )
 				{
 					throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
 				}

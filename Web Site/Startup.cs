@@ -23,30 +23,30 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+//using Microsoft.OpenApi.Models;
+using Microsoft.Extensions.FileProviders;
+using System.IO;
+using System.Net;
+using System.Text.Json;
+using System.Diagnostics;
+
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SpaServices.ReactDevelopmentServer;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-//using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Server.IISIntegration;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.Identity.Web;
-using System.IO;
-using System.Net;
-using System.Text.Json;
-using System.Diagnostics;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.SignalR;
 
 namespace SplendidCRM
 {
@@ -133,30 +133,33 @@ namespace SplendidCRM
 				options.Cookie.HttpOnly    = true;
 				options.Cookie.IsEssential = true;
 			});
+			// https://learn.microsoft.com/en-us/aspnet/core/signalr/hubs?view=aspnetcore-5.0#strongly-typed-hubs
 			services.AddScoped<HttpSessionState>();
-			services.AddScoped<Sql>();
-			services.AddScoped<SplendidError>();
 			services.AddScoped<Security>();
+			services.AddScoped<Sql>();
 			services.AddScoped<SqlProcs>();
+			services.AddScoped<SplendidError>();
 			services.AddScoped<XmlUtil>();
 			services.AddScoped<Utils>();
 			services.AddScoped<SplendidInit>();
 			services.AddScoped<SplendidCache>();
 			services.AddScoped<RestUtil>();
 			services.AddScoped<SplendidDynamic>();
-			services.AddScoped<ModuleUtils.Login>();
 			services.AddScoped<ModuleUtils.Notes>();
 			services.AddScoped<ModuleUtils.Audit>();
 			services.AddScoped<ModuleUtils.AuditPersonalInfo>();
 			services.AddScoped<ModuleUtils.EditCustomFields>();
+			services.AddScoped<ModuleUtils.Activities>();
 			services.AddScoped<SplendidCRM.Crm.Users>();
 			services.AddScoped<SplendidCRM.Crm.Modules>();
 			services.AddScoped<SplendidCRM.Crm.Emails>();
 			services.AddScoped<SplendidCRM.Crm.Images>();
+			services.AddScoped<SplendidCRM.Crm.EmailImages>();
 			services.AddScoped<SplendidCRM.Crm.NoteAttachments>();
 			services.AddScoped<SplendidCRM.Crm.BugAttachments>();
 			services.AddScoped<SplendidCRM.Crm.DocumentRevisions>();
 			services.AddScoped<ActiveDirectory>();
+			services.AddScoped<QueryBuilder>();
 
 			services.AddScoped<Utils>();
 			services.AddScoped<CurrencyUtils>();
@@ -170,17 +173,35 @@ namespace SplendidCRM
 			services.AddScoped<SyncError>();
 			services.AddScoped<ArchiveExternalDB>();
 			services.AddScoped<CurrencyUtils>();
-			services.AddScoped<RdlDocument>();
 			services.AddScoped<SplendidExport>();
 			services.AddScoped<SplendidImport>();
-			services.AddScoped<EmailUtils>();
-			services.AddScoped<SchedulerUtils>();
 			services.AddScoped<ArchiveUtils>();
 			// 05/14/2023 Paul.  These don't support injection as constructors take parameters. 
 			//services.AddScoped<CampaignUtils.SendMail>();
 			//services.AddScoped<CampaignUtils.GenerateCalls>();
 			//services.AddScoped<ModuleUtils.UndeleteModule>();
-			services.AddScoped<SqlBuild>();
+			// 06/18/2023 Paul.  SqlBuild requires SplendidInit, so it cannot be dependency injected. 
+			//services.AddScoped<SqlBuild>();
+			services.AddScoped<TwilioManager>();
+			// 06/30/2023 Paul.  Add support for reporting. 
+			services.AddScoped<ExchangeSecurity>();
+			services.AddScoped<RdlUtil>();
+			// 07/04/2023 Paul.  Add support for Sync services. 
+			services.AddScoped<SyncError>();
+			services.AddScoped<iCloudSync>();
+			services.AddScoped<GoogleApps>();
+			services.AddScoped<GoogleSync>();
+			services.AddScoped<ExchangeUtils>();
+			services.AddScoped<Spring.Social.Office365.Office365Sync>();
+			// 07/05/2023 Paul.  ExchangeSync injects Office365Sync. 
+			services.AddScoped<ExchangeSync>();
+			// 07/05/2023 Paul.  EmailUtils injects ExchangeUtils, Office365Sync and GoogleApps. 
+			services.AddScoped<EmailUtils>();
+
+			// 07/04/2023 Paul.  SchedulerUtils requires ExchangeSync, iCloudSync. 
+			services.AddScoped<SchedulerUtils>();
+			// 07/04/2023 Paul.  ModuleUtils.Login injects GoogleApps. 
+			services.AddScoped<ModuleUtils.Login>();
 
 			services.AddControllersWithViews();
 			// http://www.binaryintellect.net/articles/a1e0e49e-d4d0-4b7c-b758-84234f14047b.aspx
@@ -202,6 +223,7 @@ namespace SplendidCRM
 				configuration.RootPath = "React/dist"; // "ClientApp/build";
 			});
 			services.AddRazorPages();
+			services.AddSignalR();
 
 			services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
 			services.AddHostedService<QueuedBackgroundService>();
@@ -276,40 +298,11 @@ namespace SplendidCRM
 					{
 						context.Request.Path = "/Angular";
 					}
-					// 06/10/2023 Paul.  Allow SystemCheck page. 
-					else if ( sRequestPath.Contains("/SystemCheck") )
-					{
-						context.Request.Path = "/SystemCheck";
-					}
-					// 06/10/2023 Paul.  Allow Procedures page. 
-					else if ( sRequestPath.Contains("/_devtools/Procedures") )
-					{
-						context.Request.Path = "/Procedures";
-					}
-					// 06/11/2023 Paul.  Allow GenerateDemo page. 
-					else if ( sRequestPath.Contains("/_devtools/GenerateDemo") )
-					{
-						context.Request.Path = "/GenerateDemo";
-					}
-					else
+					// 06/20/2023 Paul.  Must not chagne SignalR requests. 
+					else if ( !sRequestPath.StartsWith("/signalr_") )
 					{
 						context.Request.Path = "/";
 					}
-				}
-				// 06/10/2023 Paul.  Allow SystemCheck page. 
-				else if ( sRequestPath.Contains("/SystemCheck.aspx") )
-				{
-					context.Request.Path = "/SystemCheck";
-				}
-				// 06/10/2023 Paul.  Allow Procedures page. 
-				else if ( sRequestPath.Contains("/_devtools/Procedures.aspx") )
-				{
-					context.Request.Path = "/Procedures";
-				}
-				// 06/11/2023 Paul.  Allow GenerateDemo page. 
-				else if ( sRequestPath.Contains("/_devtools/GenerateDemo.aspx") )
-				{
-					context.Request.Path = "/GenerateDemo";
 				}
 				await next.Invoke();
 				//return next();
@@ -348,7 +341,6 @@ namespace SplendidCRM
 			app.UseAuthorization();
 			// https://docs.microsoft.com/en-us/aspnet/core/fundamentals/app-state?view=aspnetcore-5.0
 			app.UseSession();
-
 			// https://docs.microsoft.com/en-us/aspnet/core/fundamentals/middleware/?view=aspnetcore-5.0
 			// Context is null at this point.  Must go inside Use() to get valid context. 
 			app.Use(async (context, next) =>
@@ -369,17 +361,7 @@ namespace SplendidCRM
 						// https://www.thecodebuzz.com/cannot-resolve-scoped-service-from-root-provider-asp-net-core/
 						IServiceScope scope = app.ApplicationServices.CreateScope();
 						SplendidInit SplendidInit = scope.ServiceProvider.GetService<SplendidInit>();
-						SplendidInit.InitAppURLs();
-						SqlBuild SqlBuild = scope.ServiceProvider.GetService<SqlBuild>();
-						await SqlBuild.BuildDatabase();
-						lock ( SplendidInit )
-						{
-							if ( !MaintenanceMiddleware.MaintenanceMode )
-							{
-								SplendidInit.InitApp();
-								Application["SplendidInit.InitApp"] = true;
-							}
-						}
+						await SplendidInit.InitDatabase();
 					}
 					ISession Session = context.Session;
 					if ( Session != null && !MaintenanceMiddleware.MaintenanceMode )
@@ -398,13 +380,16 @@ namespace SplendidCRM
 				}
 				await next.Invoke();
 			});
-
 			app.UseMiddleware<MaintenanceMiddleware>();
 
 			app.UseEndpoints(endpoints =>
 			{
 				endpoints.MapControllerRoute(name: "default", pattern: "{controller}/{action=Index}/{id?}");
 				endpoints.MapRazorPages();
+				// 06/18/2023 Paul.  UseEndpoints must follow InitDatabase above, otehrwise init will get skipped. 
+				// https://learn.microsoft.com/en-us/aspnet/core/signalr/hubs?view=aspnetcore-5.0#strongly-typed-hubs
+				// https://learn.microsoft.com/en-us/aspnet/core/tutorials/signalr?WT.mc_id=dotnet-35129-website&view=aspnetcore-5.0&tabs=visual-studio#add-the-signalr-client-library
+				endpoints.MapHub<TwilioManagerHub>("/signalr_twiliohub");
 			});
 			// 12/30/2021 Paul.  Using the standard html file does not allow for dynamic base href. 
 			/*

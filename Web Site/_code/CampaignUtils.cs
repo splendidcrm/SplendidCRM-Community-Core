@@ -50,12 +50,12 @@ namespace SplendidCRM
 			private Guid                 gID                ;
 			private bool                 bTest              ;
 			
-			public SendMail(IHttpContextAccessor httpContextAccessor, HttpSessionState Session, SplendidError SplendidError, EmailUtils EmailUtils, Guid gID, bool bTest)
+			public SendMail(HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, EmailUtils EmailUtils, Guid gID, bool bTest)
 			{
 				this.Session             = Session            ;
-				this.Security            = new Security(httpContextAccessor, Session);
-				this.Sql                 = new Sql(Session, Security);
-				this.SqlProcs            = new SqlProcs(Security, Sql);
+				this.Security            = Security           ;
+				this.Sql                 = Sql                ;
+				this.SqlProcs            = SqlProcs           ;
 				this.SplendidError       = SplendidError      ;
 				this.EmailUtils          = EmailUtils         ;
 				this.gID                 = gID                ;
@@ -142,12 +142,12 @@ namespace SplendidCRM
 			private Guid                 gID                ;
 			private bool                 bTest              ;
 			
-			public GenerateCalls(IHttpContextAccessor httpContextAccessor, HttpSessionState Session, SplendidError SplendidError, EmailUtils EmailUtils, Guid gID, bool bTest)
+			public GenerateCalls(HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, EmailUtils EmailUtils, Guid gID, bool bTest)
 			{
 				this.Session             = Session            ;
-				this.Security            = new Security(httpContextAccessor, Session);
-				this.Sql                 = new Sql(Session, Security);
-				this.SqlProcs            = new SqlProcs(Security, Sql);
+				this.Security            = Security           ;
+				this.Sql                 = Sql                ;
+				this.SqlProcs            = SqlProcs           ;
 				this.SplendidError       = SplendidError      ;
 				this.EmailUtils          = EmailUtils         ;
 				this.gID                 = gID                ;

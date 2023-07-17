@@ -38,7 +38,7 @@ namespace SplendidCRM
 				return User;
 			}
 
-			public UserSync(HttpContext Context, string sEXCHANGE_ALIAS, string sEXCHANGE_EMAIL, string sMAIL_SMTPUSER, string sMAIL_SMTPPASS, Guid gUSER_ID, string sEXCHANGE_WATERMARK, bool bSyncAll, bool bOFFICE365_OAUTH_ENABLED)
+			public UserSync(HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, XmlUtil XmlUtil, SyncError SyncError, ExchangeSecurity ExchangeSecurity, ExchangeUtils ExchangeUtils, ExchangeSync ExchangeSync, string sEXCHANGE_ALIAS, string sEXCHANGE_EMAIL, string sMAIL_SMTPUSER, string sMAIL_SMTPPASS, Guid gUSER_ID, string sEXCHANGE_WATERMARK, bool bSyncAll, bool bOFFICE365_OAUTH_ENABLED)
 			{
 			}
 		}

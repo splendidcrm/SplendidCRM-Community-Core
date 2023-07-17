@@ -21,95 +21,67 @@
  *********************************************************************************************************************/
 using System;
 using System.IO;
-using System.Xml;
 using System.Data;
 using System.Data.Common;
 using System.Text;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using System.Diagnostics;
 
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Authorization;
 
-using SplendidCRM;
-
-namespace SplendidWebApi.Controllers
+namespace SplendidCRM.Controllers.Administration.ModuleBuilder
 {
 	// 01/25/2022 Paul.  We are now using the Identity to take advantage of [Authorize] attribute. 
 	[Authorize]
+	[SplendidSessionAuthorize]
 	[ApiController]
 	[Route("Administration/ModuleBuilder/Rest.svc")]
-	public class ModuleBuilderRestController : ControllerBase
+	public class RestController : ControllerBase
 	{
 		private IWebHostEnvironment  hostingEnvironment ;
-		private IMemoryCache         memoryCache        ;
 		private SplendidCRM.DbProviderFactories  DbProviderFactories = new SplendidCRM.DbProviderFactories();
 		private HttpApplicationState Application        = new HttpApplicationState();
 		private HttpSessionState     Session            ;
 		private Security             Security           ;
 		private Sql                  Sql                ;
 		private L10N                 L10n               ;
-		private Currency             Currency           = new Currency();
-		private SplendidCRM.TimeZone T10n               = new SplendidCRM.TimeZone();
-		private Utils                Utils              ;
 		private SqlProcs             SqlProcs           ;
 		private SplendidError        SplendidError      ;
-		private SplendidCache        SplendidCache      ;
-		private RestUtil             RestUtil           ;
-		private SplendidDynamic      SplendidDynamic    ;
 		private SplendidInit         SplendidInit       ;
-		private SplendidCRM.Crm.Modules          Modules          ;
-		private SplendidCRM.Crm.Config           Config           = new SplendidCRM.Crm.Config();
-		private SplendidCRM.Crm.Password         CrmPassword      = new SplendidCRM.Crm.Password();
-		private ModuleUtils.Audit                Audit            ;
-		private ModuleUtils.AuditPersonalInfo    AuditPersonalInfo;
 
-		public ModuleBuilderRestController(IWebHostEnvironment hostingEnvironment, IMemoryCache memoryCache, HttpSessionState Session, Security Security, Utils Utils, SplendidError SplendidError, SplendidCache SplendidCache, RestUtil RestUtil, SplendidDynamic SplendidDynamic, SplendidInit SplendidInit, SplendidCRM.Crm.Modules Modules, ModuleUtils.Audit Audit, ModuleUtils.AuditPersonalInfo AuditPersonalInfo)
+		public RestController(IWebHostEnvironment hostingEnvironment, HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, SplendidInit SplendidInit)
 		{
 			this.hostingEnvironment  = hostingEnvironment ;
-			this.memoryCache         = memoryCache        ;
 			this.Session             = Session            ;
 			this.Security            = Security           ;
-			this.L10n                = new L10N(Sql.ToString(Session["USER_LANG"]));
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
-			this.Utils               = Utils              ;
+			this.L10n                = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
+			this.Sql                 = Sql                ;
+			this.SqlProcs            = SqlProcs           ;
 			this.SplendidError       = SplendidError      ;
-			this.SplendidCache       = SplendidCache      ;
-			this.RestUtil            = RestUtil           ;
-			this.SplendidDynamic     = SplendidDynamic    ;
 			this.SplendidInit        = SplendidInit       ;
-			this.Modules             = Modules            ;
-			this.Audit               = Audit              ;
-			this.AuditPersonalInfo   = AuditPersonalInfo  ;
 		}
 
 		public class ModuleField
 		{
-			public string FIELD_NAME        ;
-			public string EDIT_LABEL        ;
-			public string LIST_LABEL        ;
-			public string DATA_TYPE         ;
-			public int    MAX_SIZE          ;
-			public bool   REQUIRED          ;
+			public string FIELD_NAME       { get; set; }
+			public string EDIT_LABEL       { get; set; }
+			public string LIST_LABEL       { get; set; }
+			public string DATA_TYPE        { get; set; }
+			public int    MAX_SIZE         { get; set; }
+			public bool   REQUIRED         { get; set; }
 		}
 
+		[DotNetLegacyData]
 		[HttpGet("[action]")]
 		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-		public Dictionary<string, object> GetModuleFields(string ModuleName)
+		public List<ModuleField> GetModuleFields(string ModuleName)
 		{
 			if ( !Security.IsAuthenticated() || !Security.IS_ADMIN )
 			{
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
 			}
-			SplendidSession.CreateSession(Session);
-			
 			if ( Sql.IsEmptyString(ModuleName) )
 				throw(new Exception("The module name must be specified."));
 			string sTABLE_NAME = Sql.ToString(Application["Modules." + ModuleName + ".TableName"]);
@@ -177,14 +149,12 @@ namespace SplendidWebApi.Controllers
 					}
 				}
 			}
-			
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", lstFields);
-			return d;
+			return lstFields;
 		}
 
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
-		public Dictionary<string, object> GenerateModule([FromBody] Dictionary<string, object> dict)
+		public string GenerateModule([FromBody] Dictionary<string, object> dict)
 		{
 			try
 			{
@@ -192,8 +162,6 @@ namespace SplendidWebApi.Controllers
 				{
 					throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
 				}
-				SplendidSession.CreateSession(Session);
-				
 				string sDISPLAY_NAME             = String.Empty;
 				string sMODULE_NAME              = String.Empty;
 				string sTABLE_NAME               = String.Empty;
@@ -282,9 +250,7 @@ namespace SplendidWebApi.Controllers
 				StringBuilder sbProgress = new StringBuilder();
 				GenerateModule(sDISPLAY_NAME, sMODULE_NAME, sTABLE_NAME, bTAB_ENABLED, bMOBILE_ENABLED, bCUSTOM_ENABLED, bREPORT_ENABLED, bIMPORT_ENABLED, bREST_ENABLED, bIS_ADMIN, bINCLUDE_ASSIGNED_USER_ID, bINCLUDE_TEAM_ID, bOVERWRITE_EXISTING, bCREATE_CODE_BEHIND, bREACT_ONLY, dtFields, lstRelationships, sbProgress);
 				
-				Dictionary<string, object> dictResponse = new Dictionary<string, object>();
-				dictResponse.Add("d", sbProgress.ToString());
-				return dictResponse;
+				return sbProgress.ToString();
 			}
 			catch(Exception ex)
 			{
@@ -294,7 +260,7 @@ namespace SplendidWebApi.Controllers
 			}
 		}
 
-		public string CamelCase(string sName)
+		private string CamelCase(string sName)
 		{
 			string[] arrName = sName.Split('_');
 			for ( int i = 0; i < arrName.Length; i++ )
@@ -322,7 +288,6 @@ namespace SplendidWebApi.Controllers
 			}
 			return sb.ToString();
 		}
-
 
 		private string TabSpace(int nNumber)
 		{

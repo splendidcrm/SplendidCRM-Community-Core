@@ -31,8 +31,6 @@ using System.Diagnostics;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Authorization;
 
 using MimeKit;
@@ -42,58 +40,65 @@ using MailKit.Net.Imap;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Auth.OAuth2.Flows;
 
-using SplendidCRM;
-
-namespace SplendidWebApi.Controllers
+namespace SplendidCRM.Controllers.Administration.InboundEmail
 {
 	[Authorize]
+	[SplendidSessionAuthorize]
 	[ApiController]
 	[Route("Administration/InboundEmail/Rest.svc")]
-	public class InboundEmailRestController : ControllerBase
+	public class RestController : ControllerBase
 	{
 		public const string MODULE_NAME = "Import";
 		private HttpContext          Context            ;
-		private IWebHostEnvironment  hostingEnvironment ;
-		private IMemoryCache         memoryCache        ;
 		private SplendidCRM.DbProviderFactories  DbProviderFactories = new SplendidCRM.DbProviderFactories();
 		private HttpApplicationState Application        = new HttpApplicationState();
 		private HttpSessionState     Session            ;
 		private Security             Security           ;
 		private Sql                  Sql                ;
 		private L10N                 L10n               ;
-		private Currency             Currency           = new Currency();
 		private SplendidCRM.TimeZone TimeZone           = new SplendidCRM.TimeZone();
-		private Utils                Utils              ;
 		private SqlProcs             SqlProcs           ;
 		private SplendidError        SplendidError      ;
 		private SplendidCache        SplendidCache      ;
-		private RestUtil             RestUtil           ;
 		private PopUtils             PopUtils           ;
 		private ImapUtils            ImapUtils          ;
 		private EmailUtils           EmailUtils         ;
+		private MimeUtils            MimeUtils          ;
+		private XmlUtil              XmlUtil            ;
 		private ActiveDirectory      ActiveDirectory    ;
-		private SplendidCRM.Crm.Modules          Modules          ;
-		private SplendidCRM.Crm.Config           Config           = new SplendidCRM.Crm.Config();
+		private SyncError            SyncError          ;
+		private SplendidCRM.Crm.Modules               Modules          ;
+		private SplendidCRM.Crm.NoteAttachments       NoteAttachments  ;
+		private Spring.Social.Office365.Office365Sync Office365Sync    ;
+		private GoogleApps           GoogleApps         ;
+		private ExchangeSecurity     ExchangeSecurity   ;
+		private ExchangeUtils        ExchangeUtils      ;
+		private ExchangeSync         ExchangeSync       ;
 
-		public InboundEmailRestController (IWebHostEnvironment hostingEnvironment, IMemoryCache memoryCache, HttpSessionState Session, Security Security, Utils Utils, SplendidError SplendidError, SplendidCache SplendidCache, RestUtil RestUtil, PopUtils PopUtils, ImapUtils ImapUtils, EmailUtils EmailUtils, ActiveDirectory ActiveDirectory, SplendidCRM.Crm.Modules Modules)
+		public RestController (HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, SplendidCache SplendidCache, PopUtils PopUtils, ImapUtils ImapUtils, EmailUtils EmailUtils, MimeUtils MimeUtils, XmlUtil XmlUtil, ActiveDirectory ActiveDirectory, SyncError SyncError, SplendidCRM.Crm.Modules Modules, SplendidCRM.Crm.NoteAttachments NoteAttachments, Spring.Social.Office365.Office365Sync Office365Sync, GoogleApps GoogleApps, ExchangeSecurity ExchangeSecurity, ExchangeUtils ExchangeUtils, ExchangeSync ExchangeSync)
 		{
 			this.Context             = this.HttpContext   ;
-			this.hostingEnvironment  = hostingEnvironment ;
-			this.memoryCache         = memoryCache        ;
 			this.Session             = Session            ;
 			this.Security            = Security           ;
-			this.L10n                = new L10N(Sql.ToString(Session["USER_LANG"]));
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
-			this.Utils               = Utils              ;
+			this.L10n                = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
+			this.Sql                 = Sql                ;
+			this.SqlProcs            = SqlProcs           ;
 			this.SplendidError       = SplendidError      ;
 			this.SplendidCache       = SplendidCache      ;
-			this.RestUtil            = RestUtil           ;
 			this.PopUtils            = PopUtils           ;
 			this.ImapUtils           = ImapUtils          ;
 			this.EmailUtils          = EmailUtils         ;
+			this.MimeUtils           = MimeUtils          ;
+			this.XmlUtil             = XmlUtil            ;
 			this.ActiveDirectory     = ActiveDirectory    ;
+			this.SyncError           = SyncError          ;
 			this.Modules             = Modules            ;
+			this.NoteAttachments     = NoteAttachments    ;
+			this.Office365Sync       = Office365Sync      ;
+			this.GoogleApps          = GoogleApps         ;
+			this.ExchangeSecurity    = ExchangeSecurity   ;
+			this.ExchangeUtils       = ExchangeUtils      ;
+			this.ExchangeSync        = ExchangeSync       ;
 		}
 
 		private DataRow GetRecord(Guid gID)
@@ -130,17 +135,12 @@ namespace SplendidWebApi.Controllers
 			return rdr;
 		}
 
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
 		public string CheckMailbox([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			string sStatus = String.Empty;
-			if ( Security.IsAuthenticated() && Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
+			if ( Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
 			{
 				Guid gINBOUND_EMAIL_KEY = Sql.ToGuid(Application["CONFIG.InboundEmailKey"]);
 				Guid gINBOUND_EMAIL_IV  = Sql.ToGuid(Application["CONFIG.InboundEmailIV" ]);
@@ -222,7 +222,7 @@ namespace SplendidWebApi.Controllers
 					sSERVER_URL = Sql.ToString (Application["CONFIG.Exchange.ServerURL"]);
 					// 12/13/2017 Paul.  Allow version to be changed. 
 					string sEXCHANGE_VERSION = Sql.ToString(Application["CONFIG.Exchange.Version"]);
-					ExchangeUtils.ValidateExchange(Application, sSERVER_URL, sEMAIL_USER, sENCRYPTED_EMAIL_PASSWORD, true, sIMPERSONATED_TYPE, sEXCHANGE_VERSION, sbErrors);
+					ExchangeUtils.ValidateExchange(sSERVER_URL, sEMAIL_USER, sENCRYPTED_EMAIL_PASSWORD, true, sIMPERSONATED_TYPE, sEXCHANGE_VERSION, sbErrors);
 					sStatus = sbErrors.ToString();
 				}
 				else
@@ -237,15 +237,10 @@ namespace SplendidWebApi.Controllers
 			return sStatus;
 		}
 
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
 		public string GoogleApps_Authorize([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid   gID            = Sql.ToGuid(Request.Query["ID"]);
 			string sCode          = String.Empty;
 			string sRedirectURL   = String.Empty;
@@ -258,7 +253,7 @@ namespace SplendidWebApi.Controllers
 				}
 			}
 			string sEMAIL1 = String.Empty;
-			if ( Security.IsAuthenticated() && Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
+			if ( Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
 			{
 				if ( !Sql.IsEmptyString(sCode) )
 				{
@@ -295,7 +290,7 @@ namespace SplendidWebApi.Controllers
 					Application["CONFIG.GoogleApps." + gID.ToString() + ".OAuthRefreshToken"] = OAUTH_REFRESH_TOKEN;
 					Application["CONFIG.GoogleApps." + gID.ToString() + ".OAuthExpiresAt"   ] = dtOAUTH_EXPIRES_AT.ToShortDateString() + " " + dtOAUTH_EXPIRES_AT.ToShortTimeString();
 					StringBuilder sbErrors = new StringBuilder();
-					sEMAIL1 = SplendidCRM.GoogleApps.GetEmailAddress(Application, gID, sbErrors);
+					sEMAIL1 = GoogleApps.GetEmailAddress(gID, sbErrors);
 					if ( sbErrors.Length > 0 )
 						throw(new Exception(sbErrors.ToString()));
 				}
@@ -314,14 +309,8 @@ namespace SplendidWebApi.Controllers
 		[HttpPost("[action]")]
 		public void GoogleApps_Delete([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid gID = Sql.ToGuid(Request.Query["ID"]);
-			if ( Security.IsAuthenticated() && Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
+			if ( Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
 			{
 				SqlProcs.spOAUTH_TOKENS_Delete(gID, "GoogleApps");
 			}
@@ -331,15 +320,10 @@ namespace SplendidWebApi.Controllers
 			}
 		}
 
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
 		public string GoogleApps_Test([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			string sStatus            = String.Empty;
 			Guid   gID                = Sql.ToGuid(Request.Query["ID"]);
 			string sMAILBOX           = String.Empty;
@@ -370,10 +354,10 @@ namespace SplendidWebApi.Controllers
 						break;
 				}
 			}
-			if ( Security.IsAuthenticated() && Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
+			if ( Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
 			{
 				StringBuilder sbErrors = new StringBuilder();
-				SplendidCRM.GoogleApps.TestMailbox(Application, gID, sMAILBOX, sbErrors);
+				GoogleApps.TestMailbox(gID, sMAILBOX, sbErrors);
 				sStatus = sbErrors.ToString();
 				if ( Sql.IsEmptyString(sStatus) )
 					sStatus = L10n.Term("OAuth.LBL_TEST_SUCCESSFUL");
@@ -388,16 +372,10 @@ namespace SplendidWebApi.Controllers
 		[HttpPost("[action]")]
 		public void GoogleApps_RefreshToken([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid gID = Sql.ToGuid(Request.Query["ID"]);
-			if ( Security.IsAuthenticated() && Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
+			if ( Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
 			{
-				SplendidCRM.GoogleApps.RefreshAccessToken(Application, gID, true);
+				GoogleApps.RefreshAccessToken(gID, true);
 			}
 			else
 			{
@@ -405,15 +383,10 @@ namespace SplendidWebApi.Controllers
 			}
 		}
 
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
 		public string Office365_Authorize([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid   gID            = Sql.ToGuid(Request.Query["ID"]);
 			string sCode          = String.Empty;
 			string sRedirectURL   = String.Empty;
@@ -426,7 +399,7 @@ namespace SplendidWebApi.Controllers
 				}
 			}
 			string sEMAIL1 = String.Empty;
-			if ( Security.IsAuthenticated() && Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
+			if ( Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
 			{
 				if ( !Sql.IsEmptyString(sCode) )
 				{
@@ -435,10 +408,10 @@ namespace SplendidWebApi.Controllers
 					// 02/04/2023 Paul.  Directory Tenant is now required for single tenant app registrations. 
 					string sOAuthDirectoryTenatID = Sql.ToString(Application["CONFIG.Exchange.DirectoryTenantID"]);
 					// 11/09/2019 Paul.  Pass the RedirectURL so that we can call from the React client. 
-					Office365AccessToken token = ActiveDirectory.Office365AcquireAccessToken(Context, sOAuthDirectoryTenatID, sOAuthClientID, sOAuthClientSecret, gID, sCode, sRedirectURL);
+					Office365AccessToken token = Office365Sync.Office365AcquireAccessToken(Request, sOAuthDirectoryTenatID, sOAuthClientID, sOAuthClientSecret, gID, sCode, sRedirectURL);
 					
 					// 02/09/2017 Paul.  Use Microsoft Graph REST API to get email. 
-					MicrosoftGraphProfile profile = ActiveDirectory.GetProfile(Application, token.AccessToken);
+					MicrosoftGraphProfile profile = ActiveDirectory.GetProfile(token.AccessToken);
 					if ( profile != null )
 					{
 						sEMAIL1 = Sql.ToString(profile.EmailAddress);
@@ -459,14 +432,8 @@ namespace SplendidWebApi.Controllers
 		[HttpPost("[action]")]
 		public void Office365_Delete([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid gID = Sql.ToGuid(Request.Query["ID"]);
-			if ( Security.IsAuthenticated() && Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
+			if ( Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
 			{
 				SqlProcs.spOAUTH_TOKENS_Delete(gID, "Office365");
 			}
@@ -476,15 +443,10 @@ namespace SplendidWebApi.Controllers
 			}
 		}
 
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
 		public string Office365_Test([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid   gID      = Sql.ToGuid(Request.Query["ID"]);
 			string sMAILBOX = String.Empty;
 			if ( !Sql.IsEmptyGuid(gID) )
@@ -515,7 +477,7 @@ namespace SplendidWebApi.Controllers
 			}
 
 			string sStatus = String.Empty;
-			if ( Security.IsAuthenticated() && Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
+			if ( Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
 			{
 				StringBuilder sbErrors = new StringBuilder();
 				string sOAuthClientID     = Sql.ToString(Application["CONFIG.Exchange.ClientID"    ]);
@@ -523,11 +485,12 @@ namespace SplendidWebApi.Controllers
 				// 02/04/2023 Paul.  Directory Tenant is now required for single tenant app registrations. 
 				string sOAuthDirectoryTenatID = Sql.ToString(Application["CONFIG.Exchange.DirectoryTenantID"]);
 				// 12/13/2020 Paul.  Move Office365 methods to Office365utils. 
-				Office365Utils.ValidateExchange(Application, sOAuthDirectoryTenatID, sOAuthClientID, sOAuthClientSecret, gID, sMAILBOX, sbErrors);
+				Office365Utils Office365Utils = new Office365Utils(Session, Security, Sql, SqlProcs, SplendidError, MimeUtils, ActiveDirectory, SyncError, NoteAttachments, Office365Sync);
+				Office365Utils.ValidateExchange(sOAuthDirectoryTenatID, sOAuthClientID, sOAuthClientSecret, gID, sMAILBOX, sbErrors);
 #if DEBUG
-				Office365AccessToken token = ActiveDirectory.Office365RefreshAccessToken(Application, sOAuthDirectoryTenatID, sOAuthClientID, sOAuthClientSecret, gID, false);
+				Office365AccessToken token = Office365Sync.Office365RefreshAccessToken(sOAuthDirectoryTenatID, sOAuthClientID, sOAuthClientSecret, gID, false);
 				// 02/09/2017 Paul.  Use Microsoft Graph REST API to get email. 
-				MicrosoftGraphProfile profile = ActiveDirectory.GetProfile(Application, token.AccessToken);
+				MicrosoftGraphProfile profile = ActiveDirectory.GetProfile(token.AccessToken);
 				if ( profile != null )
 					Debug.WriteLine(Sql.ToString(profile.EmailAddress));
 #endif
@@ -543,20 +506,14 @@ namespace SplendidWebApi.Controllers
 		[HttpPost("[action]")]
 		public void Office365_RefreshToken([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid   gID     = Sql.ToGuid(Request.Query["ID"]);
-			if ( Security.IsAuthenticated() && Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
+			if ( Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
 			{
 				string sOAuthClientID     = Sql.ToString(Application["CONFIG.Exchange.ClientID"    ]);
 				string sOAuthClientSecret = Sql.ToString(Application["CONFIG.Exchange.ClientSecret"]);
 				// 02/04/2023 Paul.  Directory Tenant is now required for single tenant app registrations. 
 				string sOAuthDirectoryTenatID = Sql.ToString(Application["CONFIG.Exchange.DirectoryTenantID"]);
-				ActiveDirectory.Office365RefreshAccessToken(Application, sOAuthDirectoryTenatID, sOAuthClientID, sOAuthClientSecret, gID, true);
+				Office365Sync.Office365RefreshAccessToken(sOAuthDirectoryTenatID, sOAuthClientID, sOAuthClientSecret, gID, true);
 			}
 			else
 			{
@@ -567,14 +524,8 @@ namespace SplendidWebApi.Controllers
 		[HttpPost("[action]")]
 		public void CheckBounce([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid   gID     = Sql.ToGuid(Request.Query["ID"]);
-			if ( Security.IsAuthenticated() && Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
+			if ( Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
 			{
 				EmailUtils.CheckInbound(gID, true);
 			}
@@ -587,14 +538,8 @@ namespace SplendidWebApi.Controllers
 		[HttpPost("[action]")]
 		public void CheckInbound([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid   gID     = Sql.ToGuid(Request.Query["ID"]);
-			if ( Security.IsAuthenticated() && Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
+			if ( Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
 			{
 				EmailUtils.CheckInbound(gID, false);
 			}
@@ -607,17 +552,11 @@ namespace SplendidWebApi.Controllers
 		[HttpPost("[action]")]
 		public Dictionary<string, object> GetMail([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid      gID       = Sql.ToGuid(Request.Query["ID"]);
 			Guid      gTIMEZONE = Sql.ToGuid  (Session["USER_SETTINGS/TIMEZONE"]);
 			SplendidCRM.TimeZone  T10n      = TimeZone.CreateTimeZone(gTIMEZONE);
 			DataTable dtMain    = new DataTable();
-			if ( Security.IsAuthenticated() && Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
+			if ( Security.AdminUserAccess("InboundEmail", "edit") >= 0 )
 			{
 				Guid gINBOUND_EMAIL_KEY = Sql.ToGuid(Application["CONFIG.InboundEmailKey"]);
 				Guid gINBOUND_EMAIL_IV  = Sql.ToGuid(Application["CONFIG.InboundEmailIV" ]);
@@ -673,8 +612,9 @@ namespace SplendidWebApi.Controllers
 				if ( bOFFICE365_OAUTH_ENABLED )
 				{
 					// 12/13/2020 Paul.  Move Office365 methods to Office365utils. 
-					Spring.Social.Office365.Office365Sync.UserSync User = new Spring.Social.Office365.Office365Sync.UserSync(Context, String.Empty, String.Empty, String.Empty, String.Empty, gID, false, bOFFICE365_OAUTH_ENABLED);
-					string sFOLDER_ID = Office365Utils.GetFolderId(Context, String.Empty, String.Empty, gID, sMAILBOX);
+					Office365Utils Office365Utils = new Office365Utils(Session, Security, Sql, SqlProcs, SplendidError, MimeUtils, ActiveDirectory, SyncError, NoteAttachments, Office365Sync);
+					Spring.Social.Office365.Office365Sync.UserSync User = new Spring.Social.Office365.Office365Sync.UserSync(Session, Security, Sql, SqlProcs, SplendidError, SplendidCache, ExchangeSecurity, SyncError, Modules, NoteAttachments, Office365Sync, String.Empty, String.Empty, String.Empty, String.Empty, gID, false, bOFFICE365_OAUTH_ENABLED);
+					string sFOLDER_ID = Office365Utils.GetFolderId(String.Empty, String.Empty, gID, sMAILBOX);
 					if ( Sql.IsEmptyString(sFOLDER_ID) )
 						throw(new Exception("Could not find folder " + sMAILBOX));
 						
@@ -703,8 +643,8 @@ namespace SplendidWebApi.Controllers
 				{
 					try
 					{
-						ExchangeSync.UserSync User = new ExchangeSync.UserSync(Context, String.Empty, String.Empty, sEMAIL_USER, sEMAIL_PASSWORD, Guid.Empty, String.Empty, false, false);
-						string sFOLDER_ID = ExchangeUtils.GetFolderId(Context, sEMAIL_USER, sEMAIL_PASSWORD, Guid.Empty, sMAILBOX);
+						ExchangeSync.UserSync User = new ExchangeSync.UserSync(Session, Security, Sql, SqlProcs, SplendidError, XmlUtil, SyncError, ExchangeSecurity, ExchangeUtils, ExchangeSync, String.Empty, String.Empty, sEMAIL_USER, sEMAIL_PASSWORD, Guid.Empty, String.Empty, false, false);
+						string sFOLDER_ID = ExchangeUtils.GetFolderId(sEMAIL_USER, sEMAIL_PASSWORD, Guid.Empty, sMAILBOX);
 						if ( Sql.IsEmptyString(sFOLDER_ID) )
 							throw(new Exception("Could not find folder " + sMAILBOX));
 						
@@ -736,7 +676,7 @@ namespace SplendidWebApi.Controllers
 				}
 				else if ( bGOOGLEAPPS_OAUTH_ENABLED )
 				{
-					DataTable dt = GoogleApps.GetFolderMessages(Context, gID, sMAILBOX, false, 0, 200);
+					DataTable dt = GoogleApps.GetFolderMessages(gID, sMAILBOX, false, 0, 200);
 					foreach ( DataRow row in dt.Rows )
 					{
 						DataRow rowMain = dtMain.NewRow();

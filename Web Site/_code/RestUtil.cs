@@ -63,13 +63,13 @@ namespace SplendidCRM
 		private Crm.Config           Config             = new Crm.Config();
 		private Crm.Images           Images             ;
 
-		public RestUtil(IHttpContextAccessor httpContextAccessor, HttpSessionState Session, Security Security, Utils Utils, SplendidError SplendidError, SplendidCache SplendidCache, SplendidDynamic SplendidDynamic, SplendidInit SplendidInit, Crm.Images Images)
+		public RestUtil(IHttpContextAccessor httpContextAccessor, HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, Utils Utils, SplendidError SplendidError, SplendidCache SplendidCache, SplendidDynamic SplendidDynamic, SplendidInit SplendidInit, Crm.Images Images)
 		{
 			this.Context             = httpContextAccessor.HttpContext;
 			this.Session             = Session            ;
 			this.Security            = Security           ;
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
+			this.Sql                 = Sql                ;
+			this.SqlProcs            = SqlProcs           ;
 			this.Utils               = Utils              ;
 			this.SplendidError       = SplendidError      ;
 			this.SplendidCache       = SplendidCache      ;
@@ -2131,7 +2131,8 @@ namespace SplendidCRM
 					{
 						// 04/08/2019 Paul.  Exceptions to the security values. 
 						// 10/27/2019 Paul.  Password manager values are not confidential.  We need to be able to see in order to edit. 
-						if ( !sNAME.Contains("logincomingmissedcalls") && !Sql.ToString(row["NAME"]).StartsWith("Password.") )
+						// 06/19/2023 Paul.  Twilio.LogInboundMessages looks like "login". 
+						if ( !sNAME.Contains("logincomingmissedcalls") && !sNAME.Contains("loginboundmessages") && !Sql.ToString(row["NAME"]).StartsWith("Password.") )
 						{
 							string sVALUE = Sql.ToString(row["VALUE"]);
 							if ( !Sql.IsEmptyString(sVALUE) )

@@ -56,15 +56,15 @@ namespace SplendidCRM
 		private SplendidDynamic      SplendidDynamic    ;
 		private SplendidCRM.Crm.Config           Config           = new SplendidCRM.Crm.Config();
 
-		public SplendidImport(IWebHostEnvironment hostingEnvironment, IHttpContextAccessor httpContextAccessor, HttpSessionState Session, SplendidError SplendidError, SplendidCache SplendidCache, SplendidDynamic SplendidDynamic)
+		public SplendidImport(IWebHostEnvironment hostingEnvironment, IHttpContextAccessor httpContextAccessor, HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, SplendidCache SplendidCache, SplendidDynamic SplendidDynamic)
 		{
 			this.hostingEnvironment  = hostingEnvironment ;
 			this.Context             = httpContextAccessor.HttpContext;
 			this.Response            = this.Context.Response;
 			this.Session             = Session            ;
-			this.Security            = new Security(httpContextAccessor, Session);
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
+			this.Security            = Security           ;
+			this.Sql                 = Sql                ;
+			this.SqlProcs            = SqlProcs           ;
 			this.SplendidError       = SplendidError      ;
 			this.SplendidCache       = SplendidCache      ;
 			this.SplendidDynamic     = SplendidDynamic    ;

@@ -82,14 +82,12 @@ To manually enable SplendidCRM, you will need to delete the app_offline.htm file
 
 		private IWebHostEnvironment  hostingEnvironment ;
 		private SplendidError        SplendidError      ;
-		private HttpContext          Context            ;
 		private SplendidInit         SplendidInit       ;
 		private DbProviderFactories  DbProviderFactories = new DbProviderFactories();
 		private HttpApplicationState Application = new HttpApplicationState();
 
-		public SqlBuild(IHttpContextAccessor httpContextAccessor, IWebHostEnvironment hostingEnvironment, SplendidError SplendidError, SplendidInit SplendidInit)
+		public SqlBuild(IWebHostEnvironment hostingEnvironment, SplendidError SplendidError, SplendidInit SplendidInit)
 		{
-			this.Context             = httpContextAccessor.HttpContext;
 			this.hostingEnvironment  = hostingEnvironment ;
 			this.SplendidError       = SplendidError      ;
 			this.SplendidInit        = SplendidInit       ;

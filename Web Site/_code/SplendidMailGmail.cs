@@ -27,7 +27,7 @@ namespace SplendidCRM
 {
 	public class SplendidMailGmail : SplendidMailClient
 	{
-		public SplendidMailGmail(HttpApplicationState Application, Guid gOAUTH_TOKEN_ID)
+		public SplendidMailGmail(GoogleApps GoogleApps, Guid gOAUTH_TOKEN_ID)
 		{
 			throw(new Exception("GoogleApps integration is not supported."));
 		}

@@ -33,7 +33,7 @@ namespace SplendidCRM
 
 		public class GoogleWebhook
 		{
-			public static void ProcessAllNotifications(HttpContext Context)
+			public static void ProcessAllNotifications(SplendidError SplendidError, SyncError SyncError)
 			{
 			}
 		}

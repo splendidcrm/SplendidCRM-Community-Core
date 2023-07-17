@@ -49,12 +49,12 @@ namespace SplendidCRM
 		private SqlProcs             SqlProcs           ;
 		private SplendidError        SplendidError      ;
 
-		public ArchiveExternalDB(IHttpContextAccessor httpContextAccessor, HttpSessionState Session, SplendidError SplendidError)
+		public ArchiveExternalDB(HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError)
 		{
 			this.Session             = Session            ;
-			this.Security            = new Security(httpContextAccessor, Session);
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
+			this.Security            = Security           ;
+			this.Sql                 = Sql                ;
+			this.SqlProcs            = SqlProcs           ;
 			this.SplendidError       = SplendidError      ;
 		}
 

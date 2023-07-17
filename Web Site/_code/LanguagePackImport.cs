@@ -53,12 +53,12 @@ namespace SplendidCRM
 		private SqlProcs             SqlProcs           ;
 		private SplendidError        SplendidError      ;
 
-		public LanguagePackImport(HttpSessionState Session, Security Security, SplendidError SplendidError)
+		public LanguagePackImport(HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError)
 		{
 			this.Session             = Session            ;
 			this.Security            = Security           ;
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
+			this.Sql                 = Sql                ;
+			this.SqlProcs            = SqlProcs           ;
 			this.SplendidError       = SplendidError      ;
 		}
 

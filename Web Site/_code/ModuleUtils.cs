@@ -49,13 +49,17 @@ namespace SplendidCRM
 			private SqlProcs                         SqlProcs            ;
 			private SplendidError                    SplendidError       ;
 			private SplendidCRM.Crm.Config           Config              = new SplendidCRM.Crm.Config();
+			private GoogleApps                       GoogleApps          ;
+			private Spring.Social.Office365.Office365Sync Office365Sync;
 
-			public Login(IMemoryCache memoryCache, Security Security, SplendidError SplendidError, SqlProcs SqlProcs)
+			public Login(IMemoryCache memoryCache, Security Security, SplendidError SplendidError, SqlProcs SqlProcs, GoogleApps GoogleApps, Spring.Social.Office365.Office365Sync Office365Sync)
 			{
 				this.memoryCache         = memoryCache        ;
 				this.Security            = Security           ;
 				this.SqlProcs            = SqlProcs           ;
 				this.SplendidError       = SplendidError      ;
+				this.GoogleApps          = GoogleApps         ;
+				this.Office365Sync       = Office365Sync      ;
 			}
 
 			public string SendForgotPasswordNotice(string sUSER_NAME, string sEMAIL)
@@ -129,9 +133,9 @@ namespace SplendidCRM
 									mail.Body         = sBodyHtml;
 									mail.IsBodyHtml   = true;
 									mail.BodyEncoding = System.Text.Encoding.UTF8;
-											
+									
 									// 01/17/2017 Paul.  New SplendidMailClient object to encapsulate SMTP, Exchange and Google mail. 
-									SplendidMailClient client = SplendidMailClient.CreateMailClient(Application, memoryCache, Security, SplendidError);
+									SplendidMailClient client = SplendidMailClient.CreateMailClient(Application, memoryCache, Security, SplendidError, GoogleApps, Office365Sync);
 									client.Send(mail);
 									sStatus = L10n.Term("Users.LBL_RESET_PASSWORD_STATUS");
 								}
@@ -257,12 +261,12 @@ namespace SplendidCRM
 			private SplendidError        SplendidError      ;
 			private SplendidCRM.Crm.Modules          Modules          ;
 			
-			public UndeleteModule(HttpSessionState Session, Security Security, SplendidError SplendidError, SplendidCRM.Crm.Modules Modules, string sMODULE_NAME, string[] arrID, Guid gMODIFIED_USER_ID)
+			public UndeleteModule(HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, SplendidCRM.Crm.Modules Modules, string sMODULE_NAME, string[] arrID, Guid gMODIFIED_USER_ID)
 			{
 				this.Session             = Session            ;
 				this.Security            = Security           ;
-				this.Sql                 = new Sql(Session, Security);
-				this.SqlProcs            = new SqlProcs(Security, Sql);
+				this.Sql                 = Sql                ;
+				this.SqlProcs            = SqlProcs           ;
 				this.SplendidError       = SplendidError      ;
 				this.Modules             = Modules            ;
 
@@ -491,13 +495,55 @@ namespace SplendidCRM
 			}
 		}
 
+		public class Activities
+		{
+			private SplendidCache        SplendidCache      ;
+			private Crm.Modules          Modules            ;
+
+			public Activities(SplendidCache SplendidCache, Crm.Modules Modules)
+			{
+				this.SplendidCache       = SplendidCache      ;
+				this.Modules             = Modules            ;
+			}
+			
+			public void ApplyRelationshipView(IDbCommand cmd, string sPARENT_TYPE, Guid gPARENT_ID, bool bIncludeRelationships)
+			{
+				if ( bIncludeRelationships && !Sql.IsEmptyString(sPARENT_TYPE) && !Sql.IsEmptyGuid(gPARENT_ID) )
+				{
+					DataTable dtRelationships = SplendidCache.DetailViewRelationships(sPARENT_TYPE + ".DetailView");
+					DataView vwRelationships = new DataView(dtRelationships);
+					string sTABLE_NAME    = Modules.TableName(sPARENT_TYPE);
+					string sPRIMARY_FIELD = Crm.Modules.SingularTableName(sTABLE_NAME) + "_ID";
+					vwRelationships.RowFilter = "CONTROL_NAME not in ('ActivitiesOpen', 'ActivitiesHistory', 'Activities', 'ActivityStream') and PRIMARY_FIELD = '" + sPRIMARY_FIELD + "'";
+					if ( vwRelationships.Count > 0 )
+					{
+						vwRelationships.Sort = "RELATIONSHIP_ORDER";
+						StringBuilder sb = new StringBuilder();
+						int nMaxLength = 10;
+						foreach ( DataRowView row in vwRelationships )
+						{
+							string sRELATIONSHIP_VIEW_NAME = Sql.ToString(row["TABLE_NAME"]);
+							nMaxLength = Math.Max(sRELATIONSHIP_VIEW_NAME.Length + 1, nMaxLength);
+						}
+						sb.AppendLine("select ID from vw" + sTABLE_NAME + Strings.Space(nMaxLength - sTABLE_NAME.Length - 2) + " where ID = @PARENT_ID");
+						foreach ( DataRowView row in vwRelationships )
+						{
+							string sRELATIONSHIP_VIEW_NAME = Sql.ToString(row["TABLE_NAME"]);
+							sb.AppendLine("           union all select ID from " + sRELATIONSHIP_VIEW_NAME + Strings.Space(nMaxLength - sRELATIONSHIP_VIEW_NAME.Length) + " where " + sPRIMARY_FIELD + " = @PARENT_ID");
+						}
+						cmd.CommandText = cmd.CommandText.Replace("PARENT_ID = @PARENT_ID", "PARENT_ID in (" + sb.ToString() + "           )");
+					}
+				}
+			}
+		}
+
 		// 10/31/2021 Paul.  Moved GetAuditData to ModuleUtils from Audit/PopupView. 
 		public class Audit
 		{
 			private SplendidCRM.DbProviderFactories  DbProviderFactories = new SplendidCRM.DbProviderFactories();
 			private HttpApplicationState Application        = new HttpApplicationState();
-			private HttpSessionState     Session            ;
 			private Security             Security           ;
+			private L10N                 L10n               ;
 			private SplendidCRM.TimeZone T10n               = new SplendidCRM.TimeZone();
 			private SplendidError        SplendidError      ;
 			private SplendidCache        SplendidCache      ;
@@ -505,8 +551,8 @@ namespace SplendidCRM
 			
 			public Audit(HttpSessionState Session, Security Security, SplendidError SplendidError, SplendidCache SplendidCache, Crm.Modules Modules)
 			{
-				this.Session             = Session            ;
 				this.Security            = Security           ;
+				this.L10n                = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 				this.SplendidError       = SplendidError      ;
 				this.SplendidCache       = SplendidCache      ;
 				this.Modules             = Modules            ;
@@ -515,7 +561,6 @@ namespace SplendidCRM
 			// 02/05/2018 Paul.  Provide a way to convert ID to NAME for custom fields. 
 			public DataTable BuildChangesTable(string sModule, DataTable dtAudit, DataTable dtLayoutFields)
 			{
-				L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 				DataTable dtChanges = new DataTable();
 				DataColumn colFIELD_NAME   = new DataColumn("FIELD_NAME"  , typeof(System.String  ));
 				DataColumn colBEFORE_VALUE = new DataColumn("BEFORE_VALUE", typeof(System.String  ));
@@ -901,24 +946,18 @@ namespace SplendidCRM
 		{
 			private SplendidCRM.DbProviderFactories  DbProviderFactories = new SplendidCRM.DbProviderFactories();
 			private HttpApplicationState Application        = new HttpApplicationState();
-			private HttpSessionState     Session            ;
 			private Security             Security           ;
-			private SplendidCRM.TimeZone T10n               = new SplendidCRM.TimeZone();
-			private SplendidCache        SplendidCache      ;
-			private Crm.Modules          Modules            ;
+			private L10N                 L10n               ;
 			
-			public AuditPersonalInfo(HttpSessionState Session, Security Security, SplendidCache SplendidCache, Crm.Modules Modules)
+			public AuditPersonalInfo(HttpSessionState Session, Security Security)
 			{
-				this.Session             = Session            ;
 				this.Security            = Security           ;
-				this.SplendidCache       = SplendidCache      ;
-				this.Modules             = Modules            ;
+				this.L10n                = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 			}
 
 			// 02/05/2018 Paul.  Provide a way to convert ID to NAME for custom fields. 
 			private DataTable BuildChangesTable(string sModule, DataTable dtAudit, DataTable dtDATA_PRIVACY_FIELDS)
 			{
-				L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 				DataTable dtChanges = new DataTable();
 				DataColumn colFIELD_NAME   = new DataColumn("FIELD_NAME"  , typeof(System.String  ));
 				DataColumn colVALUE        = new DataColumn("VALUE"       , typeof(System.String  ));

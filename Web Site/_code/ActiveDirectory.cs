@@ -119,73 +119,56 @@ namespace SplendidCRM
 			this.SplendidInit        = SplendidInit       ;
 		}
 
-		public string AzureLogin(HttpContext Context)
+		public string AzureLogin()
 		{
 			throw(new Exception("Azure Single-Sign-On is not supported."));
 		}
 
 		// 12/25/2018 Paul.  Logout should perform Azure or ADFS logout. 
-		public string AzureLogout(HttpContext Context)
+		public string AzureLogout()
 		{
 			throw(new Exception("Azure Single-Sign-On is not supported."));
 		}
 
-		public Guid AzureValidate(HttpApplicationState Application, string sToken, ref string sError)
+		public Guid AzureValidate(string sToken, ref string sError)
 		{
 			throw(new Exception("Azure Single-Sign-On is not supported."));
 		}
 
-		public Guid AzureValidateJwt(HttpContext Context, string sToken, bool bMobileClient, ref string sError)
+		public Guid AzureValidateJwt(string sToken, bool bMobileClient, ref string sError)
 		{
 			throw(new Exception("Azure Single-Sign-On is not supported."));
 		}
 
-		public string FederationServicesLogin(HttpContext Context)
+		public string FederationServicesLogin()
 		{
 			throw(new Exception("ADFS Single-Sign-On is not supported."));
 		}
 
 		// 12/25/2018 Paul.  Logout should perform Azure or ADFS logout. 
-		public string FederationServicesLogout(HttpContext Context)
+		public string FederationServicesLogout()
 		{
 			throw(new Exception("ADFS Single-Sign-On is not supported."));
 		}
 
-		public Guid FederationServicesValidate(HttpContext Context, string sToken, ref string sError)
+		public Guid FederationServicesValidate(string sToken, ref string sError)
 		{
 			throw(new Exception("ADFS Single-Sign-On is not supported."));
 		}
 
-		public Guid FederationServicesValidate(HttpContext Context, string sUSER_NAME, string sPASSWORD, ref string sError)
+		public Guid FederationServicesValidate(string sUSER_NAME, string sPASSWORD, ref string sError)
 		{
 			throw(new Exception("ADFS Single-Sign-On is not supported."));
 		}
 
-		public Guid FederationServicesValidateJwt(HttpContext Context, string sToken, bool bMobileClient, ref string sError)
+		public Guid FederationServicesValidateJwt(string sToken, bool bMobileClient, ref string sError)
 		{
 			throw(new Exception("ADFS Single-Sign-On is not supported."));
 		}
 
-		// 11/09/2019 Paul.  Pass the RedirectURL so that we can call from the React client. 
-		// 02/04/2023 Paul.  Directory Tenant is now required for single tenant app registrations. 
-		public Office365AccessToken Office365AcquireAccessToken(HttpContext Context, string sOAuthDirectoryTenatID, string sOAuthClientID, string sOAuthClientSecret, Guid gUSER_ID, string sAuthorizationCode, string sRedirect)
-		{
-			throw(new Exception("Office 365 integration is not supported."));
-		}
+		// 07/08/2023 Paul.  Move Office365AcquireAccessToken, Office365RefreshAccessToken and Office365TestAccessToken to Office365Sync to prevent circular references. 		// 11/09/2019 Paul.  Pass the RedirectURL so that we can call from the React client. 
 
-		// 02/04/2023 Paul.  Directory Tenant is now required for single tenant app registrations. 
-		public Office365AccessToken Office365RefreshAccessToken(HttpApplicationState Application, string sOAuthDirectoryTenatID, string sOAuthClientID, string sOAuthClientSecret, Guid gUSER_ID, bool bForceRefresh)
-		{
-			throw(new Exception("Office 365 integration is not supported."));
-		}
-
-		// 02/04/2023 Paul.  Directory Tenant is now required for single tenant app registrations. 
-		public bool Office365TestAccessToken(HttpApplicationState Application, string sOAuthDirectoryTenatID, string sOAuthClientID, string sOAuthClientSecret, Guid gUSER_ID, StringBuilder sbErrors)
-		{
-			throw(new Exception("Office 365 integration is not supported."));
-		}
-
-		public MicrosoftGraphProfile GetProfile(HttpApplicationState Application, string sToken)
+		public MicrosoftGraphProfile GetProfile(string sToken)
 		{
 			throw(new Exception("Office 365 integration is not supported."));
 		}

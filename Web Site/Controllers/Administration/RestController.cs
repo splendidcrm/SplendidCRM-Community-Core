@@ -25,34 +25,27 @@ using System.Xml;
 using System.Data;
 using System.Data.Common;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Threading.Channels;
 using System.Diagnostics;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Authorization;
 
-using SplendidCRM;
-
-namespace SplendidWebApi.Controllers
+namespace SplendidCRM.Controllers.Administration
 {
 	// 01/25/2022 Paul.  We are now using the Identity to take advantage of [Authorize] attribute. 
 	[Authorize]
+	[SplendidSessionAuthorize]
 	[ApiController]
 	//[Route("[controller]")]
 	[Route("Administration/Rest.svc")]
 	//[Route("Rest.svc")]
-	public class AdministrationRestController : ControllerBase
+	public class RestController : ControllerBase
 	{
-		private IWebHostEnvironment  hostingEnvironment ;
 		private IMemoryCache         memoryCache        ;
 		private SplendidCRM.DbProviderFactories  DbProviderFactories = new SplendidCRM.DbProviderFactories();
 		private HttpApplicationState Application        = new HttpApplicationState();
@@ -60,7 +53,6 @@ namespace SplendidWebApi.Controllers
 		private Security             Security           ;
 		private Sql                  Sql                ;
 		private L10N                 L10n               ;
-		private Currency             Currency           = new Currency();
 		private SplendidCRM.TimeZone T10n               = new SplendidCRM.TimeZone();
 		private Utils                Utils              ;
 		private SqlProcs             SqlProcs           ;
@@ -71,22 +63,18 @@ namespace SplendidWebApi.Controllers
 		private SplendidInit         SplendidInit       ;
 		private SplendidCRM.Crm.Modules          Modules          ;
 		private SplendidCRM.Crm.Config           Config           = new SplendidCRM.Crm.Config();
-		private SplendidCRM.Crm.Password         CrmPassword      = new SplendidCRM.Crm.Password();
-		private ModuleUtils.Audit                Audit            ;
-		private ModuleUtils.AuditPersonalInfo    AuditPersonalInfo;
 		private ModuleUtils.EditCustomFields     EditCustomFields ;
 		private SplendidExport                   SplendidExport   ;
-		private IBackgroundTaskQueue             _taskQueue       ;
+		private IBackgroundTaskQueue taskQueue          ;
 
-		public AdministrationRestController(IWebHostEnvironment hostingEnvironment, IMemoryCache memoryCache, HttpSessionState Session, Security Security, Utils Utils, SplendidError SplendidError, SplendidCache SplendidCache, RestUtil RestUtil, SplendidDynamic SplendidDynamic, SplendidInit SplendidInit, SplendidCRM.Crm.Modules Modules, ModuleUtils.Audit Audit, ModuleUtils.AuditPersonalInfo AuditPersonalInfo, ModuleUtils.EditCustomFields EditCustomFields, SplendidExport SplendidExport, IBackgroundTaskQueue taskQueue)
+		public RestController(IMemoryCache memoryCache, HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, Utils Utils, SplendidError SplendidError, SplendidCache SplendidCache, RestUtil RestUtil, SplendidDynamic SplendidDynamic, SplendidInit SplendidInit, SplendidCRM.Crm.Modules Modules, ModuleUtils.EditCustomFields EditCustomFields, SplendidExport SplendidExport, IBackgroundTaskQueue taskQueue)
 		{
-			this.hostingEnvironment  = hostingEnvironment ;
 			this.memoryCache         = memoryCache        ;
 			this.Session             = Session            ;
 			this.Security            = Security           ;
-			this.L10n                = new L10N(Sql.ToString(Session["USER_LANG"]));
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
+			this.L10n                = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
+			this.Sql                 = Sql                ;
+			this.SqlProcs            = SqlProcs           ;
 			this.Utils               = Utils              ;
 			this.SplendidError       = SplendidError      ;
 			this.SplendidCache       = SplendidCache      ;
@@ -94,11 +82,9 @@ namespace SplendidWebApi.Controllers
 			this.SplendidDynamic     = SplendidDynamic    ;
 			this.SplendidInit        = SplendidInit       ;
 			this.Modules             = Modules            ;
-			this.Audit               = Audit              ;
-			this.AuditPersonalInfo   = AuditPersonalInfo  ;
 			this.EditCustomFields    = EditCustomFields   ;
 			this.SplendidExport      = SplendidExport     ;
-			this._taskQueue          = taskQueue          ;
+			this.taskQueue           = taskQueue          ;
 		}
 
 		// 11/08/2019 Paul.  Move sEMPTY_PASSWORD to Sql. 
@@ -1193,7 +1179,7 @@ namespace SplendidWebApi.Controllers
 			if ( Application["System.Recompile.Start"] == null )
 			{
 				// 10/31/2021 Paul.  Moved RecompileViews to ModuleUtils. 
-				await _taskQueue.QueueBackgroundWorkItemAsync(EditCustomFields.RecompileViews);
+				await taskQueue.QueueBackgroundWorkItemAsync(EditCustomFields.RecompileViews);
 			}
 			else
 			{
@@ -1210,7 +1196,7 @@ namespace SplendidWebApi.Controllers
 			}
 			if ( Application["System.RebuildAudit.Start"] == null )
 			{
-				await _taskQueue.QueueBackgroundWorkItemAsync(Utils.BuildAllAuditTables);
+				await taskQueue.QueueBackgroundWorkItemAsync(Utils.BuildAllAuditTables);
 			}
 			else
 			{
@@ -2537,6 +2523,23 @@ namespace SplendidWebApi.Controllers
 							BuildAdminModules(L10n, objs, "StudioView", "Administration.LBL_STUDIO_TITLE", arrStudioView);
 							break;
 						}
+						case "ProductsView":
+						{
+							AdminModule[] arrProductsView = new AdminModule[]
+							{ new AdminModule(L10n, "ProductTemplates"      , "Administration.LBL_PRODUCT_TEMPLATES_TITLE"       , "Administration.LBL_PRODUCT_TEMPLATES_DESC"  , 30, dictModuleTabOrder , "ProductTemplates.LNK_NEW_PRODUCT_TEMPLATE" )
+							, new AdminModule(L10n, "Manufacturers"         , "Administration.LBL_MANUFACTURERS_TITLE"           , "Administration.LBL_MANUFACTURERS_DESC"      , 31, dictModuleTabOrder , "Manufacturers.LNK_NEW_MANUFACTURER"        )
+							, new AdminModule(L10n, "ProductCategories"     , "Administration.LBL_PRODUCT_CATEGORIES_TITLE"      , "Administration.LBL_PRODUCT_CATEGORIES_DESC" , 32, dictModuleTabOrder , "ProductCategories.LNK_NEW_PRODUCT_CATEGORY")
+							, new AdminModule(L10n, "Shippers"              , "Administration.LBL_SHIPPERS_TITLE"                , "Administration.LBL_SHIPPERS_DESC"           , 33, dictModuleTabOrder , "Shippers.LNK_NEW_SHIPPER"                  )
+							, new AdminModule(L10n, "ProductTypes"          , "Administration.LBL_PRODUCT_TYPES_TITLE"           , "Administration.LBL_PRODUCT_TYPES_DESC"      , 34, dictModuleTabOrder , "ProductTypes.LNK_NEW_PRODUCT_TYPE"         )
+							, new AdminModule(L10n, "TaxRates"              , "Administration.LBL_TAX_RATES_TITLE"               , "Administration.LBL_TAX_RATES_DESC"          , 35, dictModuleTabOrder , "TaxRates.LNK_NEW_TAX_RATE"                 )
+							, new AdminModule(L10n, "Discounts"             , "Administration.LBL_DISCOUNTS_TITLE"               , "Administration.LBL_DISCOUNTS_DESC"          , 36, dictModuleTabOrder , "Discounts.LNK_NEW_DISCOUNT"                )
+							, new AdminModule(L10n, "Regions"               , "Administration.LBL_REGIONS_TITLE"                 , "Administration.LBL_REGIONS_DESC"            , 37, dictModuleTabOrder , "Regions.LNK_NEW_REGION"                    )
+							, new AdminModule(L10n, "PaymentTypes"          , "Administration.LBL_PAYMENT_TYPES_TITLE"           , "Administration.LBL_PAYMENT_TYPES_DESC"      , 38, dictModuleTabOrder , "PaymentTypes.LNK_NEW_PAYMENT_TYPE"         , "ProductTypes.gif")
+							, new AdminModule(L10n, "PaymentTerms"          , "Administration.LBL_PAYMENT_TERMS_TITLE"           , "Administration.LBL_PAYMENT_TERMS_DESC"      , 39, dictModuleTabOrder , "PaymentTerms.LNK_NEW_PAYMENT_TERM"         , "ProductTypes.gif")
+							};
+							BuildAdminModules(L10n, objs, "ProductsView", "Administration.LBL_PRODUCTS_QUOTES_TITLE", arrProductsView);
+							break;
+						}
 						case "EmailsView":
 						{
 							AdminModule[] arrEmailsView = new AdminModule[]
@@ -2558,12 +2561,57 @@ namespace SplendidWebApi.Controllers
 							BuildAdminModules(L10n, objs, "BugsView", "Administration.LBL_BUG_TITLE", arrBugsView);
 							break;
 						}
+						case "ContractsView":
+						{
+							AdminModule[] arrContractsView = new AdminModule[]
+							{ new AdminModule(L10n, "ContractTypes"         , "Administration.LBL_CONTRACT_TYPES_TITLE"          , "Administration.LBL_CONTRACT_TYPES_DESC"     , 60, dictModuleTabOrder , "ContractTypes.LNK_NEW_CONTRACT_TYPE"       , "Contracts.gif")
+							};
+							BuildAdminModules(L10n, objs, "ContractsView", "Administration.LBL_CONTRACTS_TITLE", arrContractsView);
+							break;
+						}
 						case "ForumsView":
 						{
 							AdminModule[] arrForumsView = new AdminModule[]
 							{ new AdminModule(L10n, "ForumTopics"           , "Administration.LBL_FORUM_TOPICS"                  , "Administration.LBL_FORUM_TOPICS_DESC"       , 70, dictModuleTabOrder , "Forums.LNK_NEW_FORUM"                      )
 							};
 							BuildAdminModules(L10n, objs, "ForumsView", "Administration.LBL_FORUM_TOPICS_TITLE", arrForumsView);
+							break;
+						}
+						case "WorkflowView":
+						{
+							AdminModule[] arrWorkflowView = new AdminModule[]
+							{ new AdminModule(L10n, "Workflows"             , "Administration.LBL_MANAGE_WORKFLOW_TITLE"          , "Administration.LBL_MANAGE_WORKFLOW"          , 80, dictModuleTabOrder , "Workflows.LNK_NEW_WORKFLOW"                , "Workflow.gif")
+							, new AdminModule(L10n, "WorkflowEventLog"      , "Administration.LBL_WORKFLOW_EVENT_LOG_TITLE"       , "Administration.LBL_WORKFLOW_EVENT_LOG"       , "List"                 )
+							, new AdminModule(L10n, "BusinessRules"         , "BusinessRules.LBL_BUSINESS_RULES_TITLE"            , "BusinessRules.LBL_BUSINESS_RULES"            , 83, dictModuleTabOrder , "BusinessRules.LBL_CREATE_BUTTON_LABEL"     , "Rules.gif")
+							, new AdminModule(L10n, "WorkflowAlertTemplates", "Administration.LBL_WORKFLOW_ALERT_TEMPLATES_TITLE" , "Administration.LBL_WORKFLOW_ALERT_TEMPLATES" , 82, dictModuleTabOrder , "Workflows.LNK_NEW_ALERT_TEMPLATE"          , "AlertEmailTemplates.gif")
+							, new AdminModule(L10n, "BusinessProcesses"     , "Administration.LBL_MANAGE_BUSINESS_PROCESSES_TITLE", "Administration.LBL_MANAGE_BUSINESS_PROCESSES", 84, dictModuleTabOrder , "BusinessProcesses.LNK_NEW_BUSINESS_PROCESS")
+							, new AdminModule(L10n, "BusinessProcessesLog"  , "Administration.LBL_BUSINESS_PROCESS_LOG_TITLE"     , "Administration.LBL_BUSINESS_PROCESS_LOG"     , "List"                 )
+							, new AdminModule(L10n, "MachineLearningModels" , "Administration.LBL_MACHINE_LEARNING_MODELS_TITLE"  , "Administration.LBL_MACHINE_LEARNING_MODELS"  , 85, dictModuleTabOrder , "MachineLearningModels.LNK_NEW_MACHINE_LEARNING_MODEL", "MachineLearningModels.png")
+							};
+							// 06/29/2020 Paul.  Community and Professional will not define Administration.LBL_WORKFLOW_TITLE. 
+							if ( L10n.Term("Administration.LBL_WORKFLOW_TITLE") == "Administration.LBL_WORKFLOW_TITLE" )
+								BuildAdminModules(L10n, objs, "WorkflowView", "BusinessRules.LBL_BUSINESS_RULES_TITLE", arrWorkflowView);
+							else
+								BuildAdminModules(L10n, objs, "WorkflowView", "Administration.LBL_WORKFLOW_TITLE", arrWorkflowView);
+							break;
+						}
+						case "AmazonView":
+						{
+							AdminModule[] arrAmazonView = new AdminModule[]
+							{ new AdminModule(L10n, "SimpleStorage"         , "Administration.LBL_AMAZON_S3"                     , "Administration.LBL_AMAZON_S3_DESC"          , "ConfigView"           )
+							, new AdminModule(L10n, "SimpleEmail"           , "Administration.LBL_AMAZON_SIMPLE_EMAIL"           , "Administration.LBL_AMAZON_SIMPLE_EMAIL_DESC", "ConfigView"           )
+							};
+							BuildAdminModules(L10n, objs, "AmazonView", "Administration.LBL_AMAZON_WEB_SERVICES_TITLE", arrAmazonView);
+							break;
+						}
+						case "ExchangeView":
+						{
+							AdminModule[] arrExchangeView = new AdminModule[]
+							{ new AdminModule(L10n, "Exchange"              , "Exchange.LBL_EXCHANGE_USERS"                      , "Exchange.LBL_EXCHANGE_USERS_DESC"           , "List"                 , "Exchange.gif")
+							, new AdminModule(L10n, "Exchange"              , "Exchange.LBL_EXCHANGE_SETTINGS"                   , "Exchange.LBL_EXCHANGE_SETTINGS_DESC"        , "ConfigView"           )
+							, new AdminModule(L10n, "SystemSyncLog"         , "Exchange.LBL_SYSTEM_SYNC_LOG"                     , "Exchange.LBL_SYSTEM_SYNC_LOG_DESC"          , "List"                 , "SystemLog.gif")
+							};
+							BuildAdminModules(L10n, objs, "ExchangeView", "Exchange.LBL_EXCHANGE_TITLE", arrExchangeView);
 							break;
 						}
 						case "CloudView":
@@ -2593,6 +2641,78 @@ namespace SplendidWebApi.Controllers
 							BuildAdminModules(L10n, objs, "CloudView", "Administration.LBL_CLOUD_SERVICES_TITLE", arrCloudView);
 							break;
 						}
+						case "SurveysView":
+						{
+							AdminModule[] arrSurveysView = new AdminModule[]
+							{ new AdminModule(L10n, "SurveyThemes"          , "Surveys.LBL_SURVEY_THEMES_TITLE"                  , "Surveys.LBL_SURVEY_THEMES_DESC"             , 90, dictModuleTabOrder , "SurveyThemes.LNK_NEW_SURVEY_THEME")
+							};
+							BuildAdminModules(L10n, objs, "SurveysView", "Surveys.LBL_SURVEYS_TITLE", arrSurveysView);
+							break;
+						}
+						case "PaymentView":
+						{
+							AdminModule[] arrPaymentView = new AdminModule[]
+							{ new AdminModule(L10n, "AuthorizeNet"          , "AuthorizeNet.LBL_AUTHORIZENET_SETTINGS"           , "AuthorizeNet.LBL_AUTHORIZENET_SETTINGS_DESC"         , "ConfigView"           )
+							, new AdminModule(L10n, "AuthorizeNet"          , "AuthorizeNet.LBL_AUTHORIZENET_TRANSACTIONS"       , "AuthorizeNet.LBL_AUTHORIZENET_TRANSACTIONS_DESC"     , "List"                 )
+							, new AdminModule(L10n, null                    , null                                               , null                                                  , null                   )
+							, new AdminModule(L10n, "AuthorizeNet"          , "AuthorizeNet.LBL_AUTHORIZENET_CUSTOMER_PROFILES"  , "AuthorizeNet.LBL_AUTHORIZENET_CUSTOMER_PROFILES_DESC", "AuthorizeNetCustomerListView")
+							, new AdminModule(L10n, "PayPal"                , "PayPal.LBL_PAYPAL_SETTINGS"                       , "PayPal.LBL_PAYPAL_SETTINGS_DESC"                     , "ConfigView"           )
+							, new AdminModule(L10n, "PayPal"                , "PayPal.LBL_PAYPAL_TRANSACTIONS"                   , "Administration.LBL_PAYPAL_DESC"                      , "List"                 )
+							, new AdminModule(L10n, "PayTrace"              , "PayTrace.LBL_PAYTRACE_SETTINGS"                   , "PayTrace.LBL_PAYTRACE_SETTINGS_DESC"                 , "ConfigView"           )
+							, new AdminModule(L10n, "PayTrace"              , "PayTrace.LBL_PAYTRACE_TRANSACTIONS"               , "PayTrace.LBL_PAYTRACE_TRANSACTIONS_DESC"             , "List"                 )
+							};
+							// 06/29/2020 Paul.  Payment services do not exist in Community Edition. 
+							if ( L10n.Term("Administration.LBL_PAYMENT_SERVICES_TITLE") != "Administration.LBL_PAYMENT_SERVICES_TITLE" )
+								BuildAdminModules(L10n, objs, "PaymentView", "Administration.LBL_PAYMENT_SERVICES_TITLE", arrPaymentView);
+							break;
+						}
+						case "VoIPView":
+						{
+							AdminModule[] arrVoipView = new AdminModule[]
+							{ new AdminModule(L10n, "Asterisk"              , "Asterisk.LBL_ASTERISK_SETTINGS"                   , "Asterisk.LBL_ASTERISK_SETTINGS_DESC"                 , "ConfigView"           )
+							, new AdminModule(L10n, "Asterisk"              , "Asterisk.LBL_CALL_DATA_RECORDS"                   , "Asterisk.LBL_CALL_DATA_RECORDS_DESC"                 , "List"                 )
+							, new AdminModule(L10n, "Avaya"                 , "Avaya.LBL_AVAYA_SETTINGS"                         , "Avaya.LBL_AVAYA_SETTINGS_DESC"                       , "ConfigView"           )
+							, new AdminModule(L10n, "Avaya"                 , "Avaya.LBL_CALL_DATA_RECORDS"                      , "Avaya.LBL_CALL_DATA_RECORDS_DESC"                    , "List"                 )
+							};
+							BuildAdminModules(L10n, objs, "VoipView", "Administration.LBL_VOIP_SERVICES_TITLE", arrVoipView);
+							break;
+						}
+						case "DataPrivacyView":
+						{
+							AdminModule[] arrDataPrivacyView = new AdminModule[]
+							{ new AdminModule(L10n, "DataPrivacy"           , "DataPrivacy.LBL_DATA_PRIVACY_TITLE"               , "DataPrivacy.LBL_DATA_PRIVACY_DESC"          , 100, dictModuleTabOrder, "DataPrivacy.LNK_NEW_DATA_PRIVACY"              )
+							};
+							BuildAdminModules(L10n, objs, "DataPrivacyView", "DataPrivacy.LBL_DATA_PRIVACY_TITLE", arrDataPrivacyView);
+							break;
+						}
+						case "~/Administration/Azure/AzureServicesView":
+						{
+							AdminModule[] arrAzureView = new AdminModule[]
+							{ new AdminModule(L10n, "Azure"                 , "Azure.LBL_AZURE_SETTINGS"                         , "Azure.LBL_AZURE_SETTINGS_DESC"              , "ConfigView"           , "AzureSettings.png"       )
+							, new AdminModule(L10n, "AzureRegions"          , "Azure.LBL_AZURE_REGIONS_TITLE"                    , "Azure.LBL_AZURE_REGIONS_DESCRIPTION"        , 110, dictModuleTabOrder, "AzureRegions.LNK_NEW_AZURE_REGION"             , "Azure.png"               )
+							// 04/27/2022 Paul.  Separate link for Azure Overview vs Settings.
+							, new AdminModule(L10n, "Azure"                 , "Azure.LBL_AZURE_OVERVIEW"                         , "Azure.LBL_AZURE_OVERVIEW_DESC"              , "Overview"             , "AzureSettings.png"       )
+							, new AdminModule(L10n, "AzureAppPrices"        , "Azure.LBL_AZURE_APP_PRICES_TITLE"                 , "Azure.LBL_AZURE_APP_PRICES_DESCRIPTION"     , 110, dictModuleTabOrder, "AzureAppPrices.LNK_NEW_AZURE_APP_PRICE"        , "AzureWebApps.png"        )
+							, new AdminModule(L10n, "AzureOrders"           , "Azure.LBL_AZURE_ORDERS_TITLE"                     , "Azure.LBL_AZURE_ORDERS_DESCRIPTION"         , 110, dictModuleTabOrder, "AzureOrders.LNK_NEW_AZURE_ORDER"               , "AzureOrders.png"         )
+							, new AdminModule(L10n, "AzureAppUpdates"       , "Azure.LBL_AZURE_APP_UPDATES_TITLE"                , "Azure.LBL_AZURE_APP_UPDATES_DESCRIPTION"    , 110, dictModuleTabOrder, "AzureAppPrices.LNK_NEW_AZURE_APP_PRICE"        , "AzureWebApps.png"        )
+							, new AdminModule(L10n, "AzureServiceLevels"    , "Azure.LBL_AZURE_SERVICE_LEVELS_TITLE"             , "Azure.LBL_AZURE_SERVICE_LEVELS_DESCRIPTION" , 110, dictModuleTabOrder, "AzureServiceLevels.LNK_NEW_AZURE_SERVICE_LEVEL", "AzureServiceLevels.png"  )
+							, new AdminModule(L10n, "AzureSqlPrices"        , "Azure.LBL_AZURE_SQL_PRICES_TITLE"                 , "Azure.LBL_AZURE_SQL_PRICES_DESCRIPTION"     , 110, dictModuleTabOrder, "AzureSqlPrices.LNK_NEW_AZURE_SQL_PRICE"        , "AzureSQLServers.png"     )
+							, new AdminModule(L10n, "AzureVmPrices"         , "Azure.LBL_AZURE_VM_PRICES_TITLE"                  , "Azure.LBL_AZURE_VM_PRICES_DESCRIPTION"      , 110, dictModuleTabOrder, "AzureVmPrices.LNK_NEW_AZURE_VM_PRICE"          , "AzureVirtualMachines.png")
+							, new AdminModule(L10n, "AzureSystemLog"        , "Azure.LBL_AZURE_SYSTEM_LOG_TITLE"                 , "Azure.LBL_AZURE_SYSTEM_LOG_DESCRIPTION"     , 110, dictModuleTabOrder, null                                            , "AzureSystemLog.png"      )
+							};
+							BuildAdminModules(L10n, objs, "AzureView", "Azure.LBL_AZURE_SERVICES_TITLE", arrAzureView);
+
+							AdminModule[] arrAzureMonitoring = new AdminModule[]
+							{ new AdminModule(L10n, "DnsNames"              , "Azure.LBL_DNS_NAMES_TITLE"                        , "Azure.LBL_DNS_NAMES_DESCRIPTION"            , 110, dictModuleTabOrder, "DnsNames.LBL_NEW_FORM_TITLE"                   , "AzureDNSNames.png"       )
+							, new AdminModule(L10n, "VirtualMachines"       , "Azure.LBL_VIRTUAL_MACHINES_TITLE"                 , "Azure.LBL_VIRTUAL_MACHINES_DESCRIPTION"     , 110, dictModuleTabOrder, "VirtualMachines.LBL_NEW_FORM_TITLE"            , "AzureVirtualMachines.png")
+							, new AdminModule(L10n, "SqlDatabases"          , "Azure.LBL_SQL_DATABASES_TITLE"                    , "Azure.LBL_SQL_DATABASES_DESCRIPTION"        , 110, dictModuleTabOrder, "SqlDatabases.LBL_NEW_FORM_TITLE"               , "AzureSQLDatabases.png"   )
+							, new AdminModule(L10n, "SqlServers"            , "Azure.LBL_SQL_SERVERS_TITLE"                      , "Azure.LBL_SQL_SERVERS_DESCRIPTION"          , 110, dictModuleTabOrder, "SqlServers.LBL_NEW_FORM_TITLE"                 , "AzureSQLServers.png"     )
+							, new AdminModule(L10n, "ResourceGroups"        , "Azure.LBL_AZURE_RESOURCE_GROUPS_TITLE"            , "Azure.LBL_AZURE_RESOURCE_GROUPS_DESCRIPTION", 110, dictModuleTabOrder, "ResourceGroups.LBL_NEW_FORM_TITLE"             , "AzureResourceGroups.png" )
+							, new AdminModule(L10n, "StorageAccounts"       , "Azure.LBL_STORAGE_ACCOUNTS_TITLE"                 , "Azure.LBL_STORAGE_ACCOUNTS_DESCRIPTION"     , 110, dictModuleTabOrder, "StorageAccounts.LBL_NEW_FORM_TITLE"            , "AzureStorageAccounts.png")
+							};
+							BuildAdminModules(L10n, objs, "AzureMonitoring", "Azure.LBL_AZURE_MONITORING_TITLE", arrAzureMonitoring);
+							break;
+						}
 					}
 				}
 			}
@@ -2614,8 +2734,17 @@ namespace SplendidWebApi.Controllers
 				// 11/11/2019 Paul.  A null module means this is a blank. 
 				if ( sModuleName == null )
 					modules.Add(module);
-				// 06/10/2023 Paul.  We want to allow SystemCheck. 
-				bool bValid = Sql.ToBoolean(Application["Modules." + sModuleName + ".Valid"]) || sModuleName == "SystemCheck";
+				// 04/09/2019 Paul.  There is no Google module, but we need a layout for it. 
+				else if ( sModuleName == "Google" || sModuleName == "LinkedIn" || sModuleName == "Twitter" || sModuleName == "Salesforce" )
+					sModuleName = "Config";
+				// 02/18/2021 Paul.  Azure modules. 
+				else if ( sModuleName == "CloudServices" || sModuleName == "DnsNames" || sModuleName == "ResourceGroups" || sModuleName == "SqlDatabases" || sModuleName == "SqlServers" || sModuleName == "StorageAccounts" || sModuleName == "VirtualMachines" )
+					sModuleName = "Azure";
+				// 09/04/2022 Paul.  We want to hide Cloud Services by disabling the module.  
+				bool bValid = (Sql.ToBoolean(Application["Modules." + sModuleName + ".Valid"]) && Sql.ToBoolean(Application["Modules." + module.MODULE_NAME + ".Valid"])) || sModuleName == "SystemCheck";
+				// 09/09/2021 Paul.  Allow documentation link to be hidden. 
+				if ( bValid && module.ADMIN_ROUTE == "Documentation" )
+					bValid = !Sql.ToBoolean(Application["CONFIG.hide_training"]);
 				if ( bValid && Security.AdminUserAccess(sModuleName, "edit") >= 0 )
 				{
 					if ( module.MODULE_NAME == "Users" || sModuleName == "SystemCheck" || sModuleName == "Administration" )
@@ -2718,6 +2847,12 @@ namespace SplendidWebApi.Controllers
 			// 03/26/2019 Paul.  Admin has more custom lists. 
 			Dictionary<string, object> TERMINOLOGY = SplendidCache.GetAllTerminology(lstMODULES, true);
 			results.Add("TERMINOLOGY", TERMINOLOGY);
+			
+			Dictionary<string, object> TAX_RATES = SplendidCache.GetAllTaxRates();
+			results.Add("TAX_RATES", TAX_RATES);
+			
+			Dictionary<string, object> DISCOUNTS = SplendidCache.GetAllDiscounts();
+			results.Add("DISCOUNTS", DISCOUNTS);
 			return d;
 		}
 		#endregion
@@ -2772,6 +2907,8 @@ namespace SplendidWebApi.Controllers
 			Dictionary<string, object> CONFIG = SplendidCache.GetAllConfig();
 			// 06/10/2023 Paul.  Core app does not support classic UI. 
 			CONFIG["disable_admin_classic"] = true;
+			// 06/19/2023 Paul.  Separate implementation for SignalR on ASP.NET Core. 
+			CONFIG["SignalR.Core"] = true;
 			results.Add("CONFIG", CONFIG);
 			
 			Dictionary<string, int> dictModuleTabOrder = new Dictionary<string, int>();
@@ -2833,6 +2970,12 @@ namespace SplendidWebApi.Controllers
 			Dictionary<string, object> RELATIONSHIPS = SplendidCache.GetAllRelationships();
 			results.Add("RELATIONSHIPS", RELATIONSHIPS);
 			
+			Dictionary<string, object> TAX_RATES = SplendidCache.GetAllTaxRates();
+			results.Add("TAX_RATES", TAX_RATES);
+			
+			Dictionary<string, object> DISCOUNTS = SplendidCache.GetAllDiscounts();
+			results.Add("DISCOUNTS", DISCOUNTS);
+			
 			// 09/12/2019 Paul.  User Profile needs the timezones and currencies. 
 			Dictionary<string, object> TIMEZONES = SplendidCache.GetAllTimezones();
 			results.Add("TIMEZONES", TIMEZONES);
@@ -2842,6 +2985,10 @@ namespace SplendidWebApi.Controllers
 			
 			Dictionary<string, object> LANGUAGES = SplendidCache.GetAllLanguages();
 			results.Add("LANGUAGES", LANGUAGES);
+			
+			// 04/28/2019 Paul.  Flag to include Favorites and LastViewed for the React client. 
+			Dictionary<string, object> FAVORITES = SplendidCache.GetAllFavorites();
+			results.Add("FAVORITES", FAVORITES);
 			
 			Dictionary<string, object> LAST_VIEWED = SplendidCache.GetAllLastViewed();
 			results.Add("LAST_VIEWED", LAST_VIEWED);
@@ -2856,6 +3003,19 @@ namespace SplendidWebApi.Controllers
 			Dictionary<string, object> DASHBOARDS_PANELS = SplendidCache.GetAllDashboardPanels(lstMODULES);
 			results.Add("DASHBOARDS_PANELS", DASHBOARDS_PANELS);
 			
+			// 05/03/2020 Paul.  Emails.EditView should use cached list of signatures. 
+			Dictionary<string, object> SIGNATURES = SplendidCache.GetUserSignatures();
+			results.Add("SIGNATURES", SIGNATURES);
+			
+			// 05/05/2020 Paul.  Emails.EditView should use cached list of OutboundMail. 
+			Dictionary<string, object> OUTBOUND_EMAILS = SplendidCache.GetOutboundMail();
+			results.Add("OUTBOUND_EMAILS", OUTBOUND_EMAILS);
+			
+			// 05/05/2020 Paul.  Emails.EditView should use cached list of OutboundSms. 
+			// 09/24/2021 Paul.  Wrong lis was being used. 
+			Dictionary<string, object> OUTBOUND_SMS = SplendidCache.GetOutboundSms();
+			results.Add("OUTBOUND_SMS", OUTBOUND_SMS);
+			
 			// 08/09/2020 Paul.  Convert to comma separated string. 
 			string sModuleList = String.Join(",", lstMODULES.ToArray());
 			Dictionary<string, object> objs = memoryCache.Get("ReactCustomViews.Admin." + sModuleList) as Dictionary<string, object>;
@@ -2865,15 +3025,18 @@ namespace SplendidWebApi.Controllers
 			if ( objs == null )
 			{
 				objs = new Dictionary<string, object>();
-				SplendidCache.GetAllReactCustomViews(objs, lstMODULES, "~/React/src/CustomViewsJS"     , false);
-				SplendidCache.GetAllReactCustomViews(objs, lstMODULES, "~/React/src/AdminCustomViewsJS", true );
+				SplendidCache.GetAllReactCustomViews(objs, lstMODULES, "~/React/src/CustomViewsJS"     , false, false);
+				SplendidCache.GetAllReactCustomViews(objs, lstMODULES, "~/React/src/AdminCustomViewsJS", true , false);
 				// 05/23/2019 Paul.  Include Dashlet views, but we do not yet have a way to separate by module. 
 				SplendidCache.GetAllReactDashletViews(objs, lstMODULES, "~/React/src/DashletsJS");
 				memoryCache.Set("ReactCustomViews.Admin." + sModuleList, objs, SplendidCache.DefaultCacheExpiration());
 			}
 			results.Add("REACT_CUSTOM_VIEWS", objs);
 			// 07/12/2021 Paul.  Attempt to track timeout so that we can determine stale React state. 
-			results.Add("SessionStateTimeout", HttpSessionState.Timeout);
+			int nSessionTimeout = HttpSessionState.Timeout;
+			if ( Application["CONFIG.session_timeout"] != null )
+				nSessionTimeout = Sql.ToInteger(Application["CONFIG.session_timeout"]);
+			results.Add("SessionStateTimeout", nSessionTimeout);
 			// 04/01/2020 Paul.  Move json utils to RestUtil. 
 			return d;
 		}
@@ -3582,6 +3745,22 @@ namespace SplendidWebApi.Controllers
 												Sql.AddParameter(cmd, "@NAME", sNAME);
 												gID = Sql.ToGuid(cmd.ExecuteScalar());
 											}
+										}
+										
+										// 04/08/2021 Paul.  We need to duplicate the config management to match ASP.NET code. 
+										// 10/10/2015 Paul.  Provide a way to disable streams.  When disabled, just remove the triggers and keep the data. 
+										if ( String.Compare(sNAME, "enable_activity_streams") == 0 )
+										{
+											if ( Sql.ToBoolean(Application["CONFIG.enable_activity_streams"]) )
+												SqlProcs.spSqlBuildAllStreamTriggers();
+											else
+												SqlProcs.spSqlDropAllStreamTriggers();
+										}
+										// 12/12/2017 Paul.  If the archive database changes, then rebuild the module settings. 
+										if ( String.Compare(sNAME, "Archive.Database") == 0 )
+										{
+											SqlProcs.spSqlDropAllArchiveViews();
+											SplendidInit.InitModules();
 										}
 									}
 								}
@@ -4530,10 +4709,10 @@ namespace SplendidWebApi.Controllers
 				}
 				
 				// 10/30/2021 Paul.  Move UndeleteModule to ModuleUtils. 
-				ModuleUtils.UndeleteModule undelete = new ModuleUtils.UndeleteModule(Session, Security, SplendidError, Modules, sMODULE_NAME, arrID_LIST.ToArray(), Security.USER_ID);
+				ModuleUtils.UndeleteModule undelete = new ModuleUtils.UndeleteModule(Session, Security, Sql, SqlProcs, SplendidError, Modules, sMODULE_NAME, arrID_LIST.ToArray(), Security.USER_ID);
 				if ( bBACKGROUND_OPERATION )
 				{
-					await _taskQueue.QueueBackgroundWorkItemAsync(undelete.QueueStart);
+					await taskQueue.QueueBackgroundWorkItemAsync(undelete.QueueStart);
 				}
 				else
 				{
@@ -4911,7 +5090,7 @@ namespace SplendidWebApi.Controllers
 			if ( Application["System.Recompile.Start"] == null )
 			{
 				// 10/31/2021 Paul.  Moved RecompileViews to ModuleUtils. 
-				await _taskQueue.QueueBackgroundWorkItemAsync(EditCustomFields.RecompileViews);
+				await taskQueue.QueueBackgroundWorkItemAsync(EditCustomFields.RecompileViews);
 			}
 			else
 			{
@@ -5033,7 +5212,7 @@ namespace SplendidWebApi.Controllers
 			if ( Application["System.Recompile.Start"] == null )
 			{
 				// 10/31/2021 Paul.  Moved RecompileViews to ModuleUtils. 
-				await _taskQueue.QueueBackgroundWorkItemAsync(EditCustomFields.RecompileViews);
+				await taskQueue.QueueBackgroundWorkItemAsync(EditCustomFields.RecompileViews);
 			}
 			else
 			{
@@ -5120,7 +5299,7 @@ namespace SplendidWebApi.Controllers
 			if ( Application["System.Recompile.Start"] == null )
 			{
 				// 10/31/2021 Paul.  Moved RecompileViews to ModuleUtils. 
-				await _taskQueue.QueueBackgroundWorkItemAsync(EditCustomFields.RecompileViews);
+				await taskQueue.QueueBackgroundWorkItemAsync(EditCustomFields.RecompileViews);
 			}
 			else
 			{

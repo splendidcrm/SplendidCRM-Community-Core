@@ -40,18 +40,20 @@ namespace SplendidCRM
 		private HttpSessionState     Session            ;
 		private Security             Security           ;
 		private Sql                  Sql                ;
+		private L10N                 L10n               ;
 		private SqlProcs             SqlProcs           ;
 		private SplendidError        SplendidError      ;
 		private XmlUtil              XmlUtil            ;
 		private SplendidCRM.Crm.Emails          Emails          ;
 		private SplendidCRM.Crm.NoteAttachments NoteAttachments ;
 
-		public MimeUtils(IHttpContextAccessor httpContextAccessor, HttpSessionState Session, SplendidError SplendidError, XmlUtil XmlUtil, SplendidCRM.Crm.Emails Emails, SplendidCRM.Crm.NoteAttachments NoteAttachments)
+		public MimeUtils(HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, XmlUtil XmlUtil, SplendidCRM.Crm.Emails Emails, SplendidCRM.Crm.NoteAttachments NoteAttachments)
 		{
 			this.Session             = Session            ;
-			this.Security            = new Security(httpContextAccessor, Session);
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
+			this.Security            = Security           ;
+			this.L10n                = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
+			this.Sql                 = Sql                ;
+			this.SqlProcs            = SqlProcs           ;
 			this.SplendidError       = SplendidError      ;
 			this.XmlUtil             = XmlUtil            ;
 			this.Emails              = Emails             ;
@@ -286,9 +288,8 @@ namespace SplendidCRM
 		// 09/04/2011 Paul.  In order to prevent duplicate emails, we need to use the unique message ID. 
 		// 01/21/2017 Paul.  Convert to MimeKit. 
 		// 01/28/2017 Paul.  Add GROUP_TEAM_ID. 
-		public Guid ImportInboundEmail(HttpContext Context, IDbConnection con, MimeMessage mm, Guid gMAILBOX_ID, string sINTENT, Guid gGROUP_ID, Guid gGROUP_TEAM_ID, string sUNIQUE_MESSAGE_ID)
+		public Guid ImportInboundEmail(IDbConnection con, MimeMessage mm, Guid gMAILBOX_ID, string sINTENT, Guid gGROUP_ID, Guid gGROUP_TEAM_ID, string sUNIQUE_MESSAGE_ID)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 			// 09/04/2011 Paul.  Return the email ID so that we can use this method with the Chrome Extension. 
 			Guid gEMAIL_ID = Guid.Empty;
 			//try
@@ -599,9 +600,8 @@ namespace SplendidCRM
 			return gEMAIL_ID;
 		}
 
-		public Guid ImportMessage(HttpContext Context, string sPARENT_TYPE, Guid gPARENT_ID,  Guid gUSER_ID, Guid gASSIGNED_USER_ID, Guid gTEAM_ID, string sTEAM_SET_LIST, string sUNIQUE_ID, MimeMessage email)
+		public Guid ImportMessage(string sPARENT_TYPE, Guid gPARENT_ID,  Guid gUSER_ID, Guid gASSIGNED_USER_ID, Guid gTEAM_ID, string sTEAM_SET_LIST, string sUNIQUE_ID, MimeMessage email)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 			Guid gEMAIL_ID = Guid.Empty;
 			long   lUploadMaxSize  = Sql.ToLong(Application["CONFIG.upload_maxsize"]);
 			string sCULTURE        = L10N.NormalizeCulture(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
@@ -861,7 +861,7 @@ namespace SplendidCRM
 			return dt;
 		}
 
-		public DataRow CreateMessageRecord(HttpContext Context, DataTable dt, MimeMessage email, double dSize)
+		public DataRow CreateMessageRecord(DataTable dt, MimeMessage email, double dSize)
 		{
 			DataRow row = dt.NewRow();
 			dt.Rows.Add(row);

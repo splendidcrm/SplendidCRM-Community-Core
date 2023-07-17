@@ -568,7 +568,7 @@ namespace SplendidCRM.Crm
 			return gRECIPIENT_ID;
 		}
 	}
-/*
+
 	public class EmailImages
 	{
 		private HttpApplicationState Application = new HttpApplicationState();
@@ -642,7 +642,7 @@ namespace SplendidCRM.Crm
 		}
 
 	}
-*/
+
 	// 05/27/2016 Paul.  Move LoadFile to Crm.Images class. 
 	public class Images
 	{

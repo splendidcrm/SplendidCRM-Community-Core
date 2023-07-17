@@ -32,32 +32,32 @@ namespace SplendidCRM
 		public static Guid EXCHANGE_ID = new Guid("00000000-0000-0000-0000-00000000000D");
 
 		// 12/13/2017 Paul.  Allow version to be changed. 
-		public static bool ValidateExchange(HttpApplicationState Application, string sSERVER_URL, string sUSER_NAME, string sPASSWORD, bool bIGNORE_CERTIFICATE, string sIMPERSONATED_TYPE, string sEXCHANGE_VERSION, StringBuilder sbErrors)
+		public static bool ValidateExchange(string sSERVER_URL, string sUSER_NAME, string sPASSWORD, bool bIGNORE_CERTIFICATE, string sIMPERSONATED_TYPE, string sEXCHANGE_VERSION, StringBuilder sbErrors)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
 
-		public static void SendTestMessage(HttpApplicationState Application, string sSERVER_URL, string sUSER_NAME, string sPASSWORD, string sFromAddress, string sFromName, string sToAddress, string sToName)
+		public static void SendTestMessage(string sSERVER_URL, string sUSER_NAME, string sPASSWORD, string sFromAddress, string sFromName, string sToAddress, string sToName)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
 
-		public static void SendTestMessage(HttpApplicationState Application, Guid gOAUTH_TOKEN_ID, string sFromAddress, string sFromName, string sToAddress, string sToName)
+		public static void SendTestMessage(Guid gOAUTH_TOKEN_ID, string sFromAddress, string sFromName, string sToAddress, string sToName)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
 		/*
-		public static int ValidateImpersonation(HttpApplicationState Application, string sEXCHANGE_ALIAS, string sEXCHANGE_EMAIL)
+		public static int ValidateImpersonation(string sEXCHANGE_ALIAS, string sEXCHANGE_EMAIL)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
 		*/
-		public static bool ValidateExchange(HttpApplicationState Application, string sOAuthClientID, string sOAuthClientSecret, Guid gUSER_ID, string sMAILBOX, StringBuilder sbErrors)
+		public static bool ValidateExchange(string sOAuthClientID, string sOAuthClientSecret, Guid gUSER_ID, string sMAILBOX, StringBuilder sbErrors)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
 		/*
-		public static ExchangeService CreateExchangeService(HttpApplicationState Application, string sEXCHANGE_ALIAS, string sEXCHANGE_EMAIL, string sMAIL_SMTPUSER, string sMAIL_SMTPPASS, Guid gEXCHANGE_ID)
+		public static ExchangeService CreateExchangeService(string sEXCHANGE_ALIAS, string sEXCHANGE_EMAIL, string sMAIL_SMTPUSER, string sMAIL_SMTPPASS, Guid gEXCHANGE_ID)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
@@ -102,22 +102,22 @@ namespace SplendidCRM
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
 
-		public static DataTable GetMessage(HttpContext Context, ExchangeService service, string sUNIQUE_ID)
+		public static DataTable GetMessage(ExchangeService service, string sUNIQUE_ID)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
 		*/
-		public static void GetMessage(HttpContext Context, Guid gMAILBOX_ID, string sUNIQUE_ID, ref string sNAME, ref string sFROM_ADDR, ref bool bIS_READ, ref int nSIZE)
+		public static void GetMessage(Guid gMAILBOX_ID, string sUNIQUE_ID, ref string sNAME, ref string sFROM_ADDR, ref bool bIS_READ, ref int nSIZE)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
 		/*
-		public static void MarkAsRead(HttpContext Context, Guid gMAILBOX_ID, string sUNIQUE_ID)
+		public static void MarkAsRead(Guid gMAILBOX_ID, string sUNIQUE_ID)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
 		*/
-		public static void MarkAsUnread(HttpContext Context, Guid gMAILBOX_ID, string sUNIQUE_ID)
+		public static void MarkAsUnread(Guid gMAILBOX_ID, string sUNIQUE_ID)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
@@ -145,23 +145,23 @@ namespace SplendidCRM
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
 
-		public static string GetFolderId(HttpContext Context, string sUSERNAME, string sPASSWORD, Guid gMAILBOX_ID, string sMAILBOX)
+		public static string GetFolderId(string sUSERNAME, string sPASSWORD, Guid gMAILBOX_ID, string sMAILBOX)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
 
-		public static DataTable GetFolderMessages(HttpContext Context, string sUSERNAME, string sPASSWORD, Guid gMAILBOX_ID, string sMAILBOX, bool bONLY_SINCE, string sEXCHANGE_WATERMARK)
+		public static DataTable GetFolderMessages(string sUSERNAME, string sPASSWORD, Guid gMAILBOX_ID, string sMAILBOX, bool bONLY_SINCE, string sEXCHANGE_WATERMARK)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
 		/*
-		public static Guid ImportMessage(HttpContext Context, HttpSessionState Session, ExchangeService service, IDbConnection con, string sPARENT_TYPE, Guid gPARENT_ID, string sEXCHANGE_ALIAS, Guid gUSER_ID, Guid gASSIGNED_USER_ID, Guid gTEAM_ID, string sTEAM_SET_LIST, string sREMOTE_KEY)
+		public static Guid ImportMessage(HttpSessionState Session, ExchangeService service, IDbConnection con, string sPARENT_TYPE, Guid gPARENT_ID, string sEXCHANGE_ALIAS, Guid gUSER_ID, Guid gASSIGNED_USER_ID, Guid gTEAM_ID, string sTEAM_SET_LIST, string sREMOTE_KEY)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
 
 		// 07/31/2010 Paul.  Add support for IPM.Post import. 
-		public static Guid ImportPost(HttpContext Context, HttpSessionState Session, ExchangeService service, IDbConnection con, string sPARENT_TYPE, Guid gPARENT_ID, string sEXCHANGE_ALIAS, Guid gUSER_ID, Guid gASSIGNED_USER_ID, Guid gTEAM_ID, string sTEAM_SET_LIST, string sREMOTE_KEY)
+		public static Guid ImportPost(HttpSessionState Session, ExchangeService service, IDbConnection con, string sPARENT_TYPE, Guid gPARENT_ID, string sEXCHANGE_ALIAS, Guid gUSER_ID, Guid gASSIGNED_USER_ID, Guid gTEAM_ID, string sTEAM_SET_LIST, string sREMOTE_KEY)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
@@ -191,7 +191,7 @@ namespace SplendidCRM
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
 		*/
-		public static Guid ImportInboundEmail(HttpContext Context, IDbConnection con, Guid gMAILBOX_ID, string sINTENT, Guid gGROUP_ID, Guid gGROUP_TEAM_ID, string sUNIQUE_ID, string sUNIQUE_MESSAGE_ID)
+		public static Guid ImportInboundEmail(IDbConnection con, Guid gMAILBOX_ID, string sINTENT, Guid gGROUP_ID, Guid gGROUP_TEAM_ID, string sUNIQUE_ID, string sUNIQUE_MESSAGE_ID)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}

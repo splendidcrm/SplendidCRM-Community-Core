@@ -45,14 +45,14 @@ namespace SplendidCRM
 		private Sql                  Sql                ;
 		private SqlProcs             SqlProcs           ;
 
-		public SyncError(IWebHostEnvironment hostingEnvironment, IHttpContextAccessor httpContextAccessor, HttpSessionState Session, Security Security)
+		public SyncError(IWebHostEnvironment hostingEnvironment, IHttpContextAccessor httpContextAccessor, HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs)
 		{
 			this.hostingEnvironment  = hostingEnvironment  ;
 			this.Context             = httpContextAccessor.HttpContext;
 			this.Session             = Session            ;
 			this.Security            = Security           ;
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
+			this.Sql                 = Sql                ;
+			this.SqlProcs            = SqlProcs           ;
 		}
 
 		public void SystemWarning(StackFrame stack, string sMESSAGE)
@@ -88,47 +88,19 @@ namespace SplendidCRM
 			}
 		}
 		
+		public void SystemMessage(string sERROR_TYPE, StackFrame stack, Exception ex)
+		{
+			string sMESSAGE = Utils.ExpandException(ex);
+			if ( sERROR_TYPE == "Error" )
+			{
+				// 01/14/2009 Paul.  Save the stack trace to help locate the source of a bug. 
+				if ( ex.StackTrace != null )
+					sMESSAGE += "<br />\r\n" + ex.StackTrace.Replace(ControlChars.CrLf, "<br />\r\n");
+			}
+			SystemMessage(sERROR_TYPE, stack, sMESSAGE);
+		}
+		
 		public void SystemMessage(string sERROR_TYPE, StackFrame stack, string sMESSAGE)
-		{
-			SystemMessage(Application, Context, sERROR_TYPE, stack, sMESSAGE);
-		}
-		
-		public void SystemMessage(HttpContext Context, string sERROR_TYPE, StackFrame stack, Exception ex)
-		{
-			string sMESSAGE = Utils.ExpandException(ex);
-			if ( sERROR_TYPE == "Error" )
-			{
-				// 01/14/2009 Paul.  Save the stack trace to help locate the source of a bug. 
-				if ( ex.StackTrace != null )
-					sMESSAGE += "<br />\r\n" + ex.StackTrace.Replace(ControlChars.CrLf, "<br />\r\n");
-			}
-			SystemMessage(Application, Context, sERROR_TYPE, stack, sMESSAGE);
-		}
-		
-		public void SystemMessage(HttpContext Context, string sERROR_TYPE, StackFrame stack, string sMESSAGE)
-		{
-			SystemMessage(Application, Context, sERROR_TYPE, stack, sMESSAGE);
-		}
-		
-		// 10/2009 Paul.  The cache functions need to pass an Exception object. 
-		public void SystemMessage(HttpApplicationState Application, string sERROR_TYPE, StackFrame stack, Exception ex)
-		{
-			string sMESSAGE = Utils.ExpandException(ex);
-			if ( sERROR_TYPE == "Error" )
-			{
-				// 01/14/2009 Paul.  Save the stack trace to help locate the source of a bug. 
-				if ( ex.StackTrace != null )
-					sMESSAGE += "<br />\r\n" + ex.StackTrace.Replace(ControlChars.CrLf, "<br />\r\n");
-			}
-			SystemMessage(Application, null, sERROR_TYPE, stack, sMESSAGE);
-		}
-		
-		public void SystemMessage(HttpApplicationState Application, string sERROR_TYPE, StackFrame stack, string sMESSAGE)
-		{
-			SystemMessage(Application, null, sERROR_TYPE, stack, sMESSAGE);
-		}
-		
-		public void SystemMessage(HttpApplicationState Application, HttpContext Context, string sERROR_TYPE, StackFrame stack, string sMESSAGE)
 		{
 			if ( Application == null )
 				return;

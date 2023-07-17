@@ -43,21 +43,23 @@ namespace SplendidCRM
 		private HttpSessionState     Session            ;
 		private Security             Security           ;
 		private Sql                  Sql                ;
+		private L10N                 L10n               ;
 		private SqlProcs             SqlProcs           ;
 		private SplendidError        SplendidError      ;
 		private SplendidCache        SplendidCache      ;
 		private XmlUtil              XmlUtil            ;
 		private SplendidCRM.Crm.Config           Config           = new SplendidCRM.Crm.Config();
 
-		public ImportUtils(IWebHostEnvironment hostingEnvironment, IHttpContextAccessor httpContextAccessor, HttpSessionState Session, Security Security, SplendidError SplendidError, SplendidCache SplendidCache, XmlUtil XmlUtil)
+		public ImportUtils(IWebHostEnvironment hostingEnvironment, IHttpContextAccessor httpContextAccessor, HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, SplendidCache SplendidCache, XmlUtil XmlUtil)
 		{
 			this.hostingEnvironment  = hostingEnvironment ;
 			this.Context             = httpContextAccessor.HttpContext;
 			this.Response            = this.Context.Response;
 			this.Session             = Session            ;
 			this.Security            = Security           ;
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
+			this.L10n                = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
+			this.Sql                 = Sql                ;
+			this.SqlProcs            = SqlProcs           ;
 			this.SplendidError       = SplendidError      ;
 			this.SplendidCache       = SplendidCache      ;
 			this.XmlUtil             = XmlUtil            ;
@@ -65,7 +67,6 @@ namespace SplendidCRM
 
 		public void GenerateImport(string sImportModule, string sSOURCE, DataView vwColumns, XmlDocument xmlMapping, DataTable dtRules, string sLayoutEditView, string sTempFileName, bool bPreview, bool bHAS_HEADER, bool bUSE_TRANSACTION, Guid gPROSPECT_LIST_ID, StringBuilder sbImport, StringBuilder sbErrors, string sProcessedFileID, DataTable dtProcessed, ref int nImported, ref int nFailed, ref int nDuplicates)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 			// 11/01/2006 Paul.  Max errors is now a config value. 
 			int nMAX_ERRORS = Sql.ToInteger(Application["CONFIG.import_max_errors"]);
 			if ( nMAX_ERRORS <= 0 )

@@ -20,31 +20,17 @@
  * "Copyright (C) 2005-2011 SplendidCRM Software, Inc. All rights reserved."
  *********************************************************************************************************************/
 using System;
-using System.IO;
-using System.Xml;
 using System.Data;
-using System.Data.Common;
-using System.Text;
-using System.Text.Json;
-using System.Text.RegularExpressions;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
 
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace SplendidCRM.Pages
 {
+	// 06/29/2023 Paul.  SystemCheck is not authorized. 
 	public class SystemCheckModel : PageModel
 	{
-		private IWebHostEnvironment  hostingEnvironment ;
-		private IMemoryCache         memoryCache        ;
 		private SplendidCRM.DbProviderFactories  DbProviderFactories = new SplendidCRM.DbProviderFactories();
 		private HttpContext          Context            ;
 		private HttpApplicationState Application        = new HttpApplicationState();
@@ -62,10 +48,8 @@ namespace SplendidCRM.Pages
 		public  string               LastError          { get; set; }
 		public  string               AUTH_USER          { get; set; }
 
-		public SystemCheckModel(IWebHostEnvironment hostingEnvironment, IHttpContextAccessor httpContextAccessor, IMemoryCache memoryCache, HttpSessionState Session, Security Security)
+		public SystemCheckModel(IHttpContextAccessor httpContextAccessor, HttpSessionState Session, Security Security)
 		{
-			this.hostingEnvironment  = hostingEnvironment ;
-			this.memoryCache         = memoryCache        ;
 			this.Context             = httpContextAccessor.HttpContext;
 			this.Session             = Session            ;
 			this.Security            = Security           ;

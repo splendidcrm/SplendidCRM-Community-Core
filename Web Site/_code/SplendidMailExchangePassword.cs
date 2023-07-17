@@ -30,12 +30,12 @@ namespace SplendidCRM
 {
 	public class SplendidMailExchangePassword : SplendidMailClient
 	{
-		public SplendidMailExchangePassword(HttpApplicationState Application)
+		public SplendidMailExchangePassword(Security Security)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}
 
-		public SplendidMailExchangePassword(HttpApplicationState Application, string sSERVER_URL, string sUSER_NAME, string sPASSWORD)
+		public SplendidMailExchangePassword(string sSERVER_URL, string sUSER_NAME, string sPASSWORD)
 		{
 			throw(new Exception("Exchange Server integration is not supported."));
 		}

@@ -25,7 +25,6 @@ using System.Xml;
 using System.Data;
 using System.Data.Common;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -40,18 +39,18 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
-using SplendidCRM;
-
-namespace SplendidWebApi.Controllers
+namespace SplendidCRM.Controllers
 {
 	// 01/25/2022 Paul.  We are now using the Identity to take advantage of [Authorize] attribute. 
 	[Authorize]
+	[SplendidSessionAuthorize]
 	[ApiController]
 	//[Route("[controller]")]
 	[Route("[controller].svc")]
 	//[Route("Rest.svc")]
 	public class RestController : ControllerBase
 	{
+		#region Injected Properties
 		private IWebHostEnvironment  hostingEnvironment ;
 		private IMemoryCache         memoryCache        ;
 		private SplendidCRM.DbProviderFactories  DbProviderFactories = new SplendidCRM.DbProviderFactories();
@@ -65,6 +64,7 @@ namespace SplendidWebApi.Controllers
 		private SqlProcs             SqlProcs           ;
 		private SplendidError        SplendidError      ;
 		private SplendidCache        SplendidCache      ;
+		private Utils                Utils              ;
 		private RestUtil             RestUtil           ;
 		private SplendidDynamic      SplendidDynamic    ;
 		private SplendidInit         SplendidInit       ;
@@ -73,29 +73,33 @@ namespace SplendidWebApi.Controllers
 		private SplendidCRM.Crm.Password         CrmPassword      = new SplendidCRM.Crm.Password();
 		private ModuleUtils.Audit                Audit            ;
 		private ModuleUtils.AuditPersonalInfo    AuditPersonalInfo;
+		private ModuleUtils.Activities           Activities       ;
 		private ActiveDirectory                  ActiveDirectory  ;
 		private ArchiveUtils                     ArchiveUtils     ;
 		private ModuleUtils.Login                ModuleUtilsLogin ;
 		private SplendidExport                   SplendidExport   ;
 		private EmailUtils                       EmailUtils       ;
+		#endregion
 
-		public RestController(IWebHostEnvironment hostingEnvironment, IMemoryCache memoryCache, HttpSessionState Session, Security Security, SplendidError SplendidError, SplendidCache SplendidCache, RestUtil RestUtil, SplendidDynamic SplendidDynamic, SplendidInit SplendidInit, SplendidCRM.Crm.Modules Modules, ModuleUtils.Audit Audit, ModuleUtils.AuditPersonalInfo AuditPersonalInfo, ActiveDirectory ActiveDirectory, ArchiveUtils ArchiveUtils, ModuleUtils.Login Login, SplendidExport SplendidExport, EmailUtils EmailUtils)
+		public RestController(IWebHostEnvironment hostingEnvironment, IMemoryCache memoryCache, HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, SplendidCache SplendidCache, Utils Utils, RestUtil RestUtil, SplendidDynamic SplendidDynamic, SplendidInit SplendidInit, SplendidCRM.Crm.Modules Modules, ModuleUtils.Audit Audit, ModuleUtils.AuditPersonalInfo AuditPersonalInfo, ModuleUtils.Activities Activities, ActiveDirectory ActiveDirectory, ArchiveUtils ArchiveUtils, ModuleUtils.Login Login, SplendidExport SplendidExport, EmailUtils EmailUtils)
 		{
 			this.hostingEnvironment  = hostingEnvironment ;
 			this.memoryCache         = memoryCache        ;
 			this.Session             = Session            ;
 			this.Security            = Security           ;
-			this.L10n                = new L10N(Sql.ToString(Session["USER_LANG"]));
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
+			this.L10n                = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
+			this.Sql                 = Sql                ;
+			this.SqlProcs            = SqlProcs           ;
 			this.SplendidError       = SplendidError      ;
 			this.SplendidCache       = SplendidCache      ;
+			this.Utils               = Utils              ;
 			this.RestUtil            = RestUtil           ;
 			this.SplendidDynamic     = SplendidDynamic    ;
 			this.SplendidInit        = SplendidInit       ;
 			this.Modules             = Modules            ;
 			this.Audit               = Audit              ;
 			this.AuditPersonalInfo   = AuditPersonalInfo  ;
+			this.Activities          = Activities         ;
 			this.ActiveDirectory     = ActiveDirectory    ;
 			this.ArchiveUtils        = ArchiveUtils       ;
 			this.ModuleUtilsLogin    = Login              ;
@@ -104,123 +108,107 @@ namespace SplendidWebApi.Controllers
 		}
 
 		#region Scalar functions
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
-		public Dictionary<string, object> Version()
+		public string Version()
 		{
-			// 03/10/2011 Paul.  We do not need to set the content type because the default is json. 
-			//WebOperationContext.Current.OutgoingResponse.ContentType = "application/json; charset=utf-8";
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", Sql.ToString(Application["SplendidVersion"]));
-			return d;
+			return Sql.ToString(Application["SplendidVersion"]);
 		}
 
 		[AllowAnonymous]
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
-		public Dictionary<string, object> Edition()
+		public string Edition()
 		{
-			//WebOperationContext.Current.OutgoingResponse.ContentType = "application/json; charset=utf-8";
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", Sql.ToString(Application["CONFIG.service_level"]));
-			return d;
+			return Sql.ToString(Application["CONFIG.service_level"]);
 		}
 
 		[AllowAnonymous]
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
-		public Dictionary<string, object> UtcTime()
+		public DateTime UtcTime()
 		{
-			//WebOperationContext.Current.OutgoingResponse.ContentType = "application/json; charset=utf-8";
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", DateTime.UtcNow);
-			return d;
+			return DateTime.UtcNow;
 		}
 
 		[AllowAnonymous]
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
-		public Dictionary<string, object> IsAuthenticated()
+		public bool IsAuthenticated()
 		{
-			//WebOperationContext.Current.OutgoingResponse.ContentType = "application/json; charset=utf-8";
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", Security.IsAuthenticated());
-			return d;
+			return Security.IsAuthenticated();
 		}
 
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
-		public Dictionary<string, object> GetUserID()
+		public Guid GetUserID()
 		{
 			Guid gUSER_ID = Guid.Empty;
 			if ( Security.IsAuthenticated() )
 				gUSER_ID = Security.USER_ID;
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", gUSER_ID.ToString());
-			return d;
+			return gUSER_ID;
 		}
 
 		// 07/15/2021 Paul.  React Client needs to access the ASP.NET_SessionId. 
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
-		public Dictionary<string, object> GetUserSession()
+		public string GetUserSession()
 		{
 			string sUSER_SESSION = String.Empty;
 			if ( Security.IsAuthenticated() && Session != null )
 				sUSER_SESSION = Security.USER_SESSION;
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", sUSER_SESSION);
-			return d;
+			return sUSER_SESSION;
 		}
 
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
-		public Dictionary<string, object> GetUserName()
+		public string GetUserName()
 		{
 			string sUSER_NAME = String.Empty;
 			if ( Security.IsAuthenticated() )
 				sUSER_NAME = Security.USER_NAME;
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", sUSER_NAME);
-			return d;
+			return sUSER_NAME;
 		}
 
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
-		public Dictionary<string, object> GetTeamID()
+		public Guid GetTeamID()
 		{
 			Guid gTEAM_ID = Guid.Empty;
 			if ( Security.IsAuthenticated() )
 				gTEAM_ID = Security.TEAM_ID;
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", gTEAM_ID.ToString());
-			return d;
+			return gTEAM_ID;
 		}
 
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
-		public Dictionary<string, object> GetTeamName()
+		public string GetTeamName()
 		{
 			string sTEAM_NAME = String.Empty;
 			if ( Security.IsAuthenticated() )
 				sTEAM_NAME = Security.TEAM_NAME;
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", sTEAM_NAME);
-			return d;
+			return sTEAM_NAME;
 		}
 
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
-		public Dictionary<string, object> GetUserLanguage()
+		public string GetUserLanguage()
 		{
 			string sLANG = "en-US";
 			if ( Security.IsAuthenticated() )
 				sLANG = Sql.ToString(Session["USER_SETTINGS/CULTURE"]);
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", sLANG);
-			return d;
+			return sLANG;
 		}
 
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
-		public Dictionary<string, object> GetUserProfile()
+		public SplendidCache.UserProfile GetUserProfile()
 		{
 			if ( Security.IsAuthenticated() )
 			{
 				// 05/27/2019 Paul.  Move GetUserProfile to cache for React client. 
 				SplendidCache.UserProfile profile = SplendidCache.GetUserProfile();
-				Dictionary<string, object> d = new Dictionary<string, object>();
-				d.Add("d", profile);
-				return d;
+				return profile;
 			}
 			else
 			{
@@ -232,11 +220,6 @@ namespace SplendidWebApi.Controllers
 		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
 		public Dictionary<string, object> GetMyUserProfile()
 		{
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			StringBuilder sbDumpSQL = new StringBuilder();
 			// 12/16/2019 Paul.  Moved GetTable to ~/_code/RestUtil.cs
 			DataTable dt = new DataTable();
@@ -325,28 +308,23 @@ namespace SplendidWebApi.Controllers
 		}
 
 		[AllowAnonymous]
+		[DotNetLegacyData]
 		[HttpGet("[action]")]
 		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
 		public Dictionary<string, object> SingleSignOnSettings()
 		{
-			Dictionary<string, object> d = new Dictionary<string, object>();
 			// 06/24/2019 Paul.  Separate out so that the settings can be returned in GetReactLoginState. 
 			Dictionary<string, object> results = GetSingleSignOnSettings();
-			d.Add("d", results);
-			// 04/01/2020 Paul.  Move json utils to RestUtil. 
-			return d;
+			return results;
 		}
 
+		[DotNetLegacyData]
 		[HttpGet("[action]")]
-		public Dictionary<string, object> ArchiveViewExists([FromQuery] string VIEW_NAME)
+		public bool ArchiveViewExists([FromQuery] string VIEW_NAME)
 		{
 			bool bExists = false;
 			try
 			{
-				if ( !Security.IsAuthenticated() )
-				{
-					throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-				}
 				bExists = SplendidCache.ArchiveViewExists(VIEW_NAME);
 			}
 			catch(Exception ex)
@@ -354,13 +332,10 @@ namespace SplendidWebApi.Controllers
 				SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
 				throw(new Exception(ex.Message));
 			}
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", bExists);
-			return d;
+			return bExists;
 		}
 		#endregion
 
-		#region Login
 		public class LoginParameters
 		{
 			public string UserName     { get; set; }
@@ -369,10 +344,12 @@ namespace SplendidWebApi.Controllers
 			public bool   MobileClient { get; set; }
 		}
 
+		#region Login
 		[AllowAnonymous]
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
 		// 05/02/2017 Paul.  Need a separate flag for the mobile client. 
-		public async Task<Dictionary<string, object>> Login([FromBody] LoginParameters input)
+		public async Task<Guid> Login([FromBody] LoginParameters input)
 		{
 			// 11/05/2018 Paul.  Protect against null inputs. 
 			string sUSER_NAME   = Sql.ToString (input.UserName    );
@@ -397,7 +374,7 @@ namespace SplendidWebApi.Controllers
 			if ( Sql.ToBoolean(Application["CONFIG.ADFS.SingleSignOn.Enabled"]) )
 			{
 				// 05/02/2017 Paul.  Need a separate flag for the mobile client. 
-				gUSER_ID = ActiveDirectory.FederationServicesValidateJwt(HttpContext, sPASSWORD, bMOBILE_CLIENT, ref sError);
+				gUSER_ID = ActiveDirectory.FederationServicesValidateJwt(sPASSWORD, bMOBILE_CLIENT, ref sError);
 				if ( !Sql.IsEmptyGuid(gUSER_ID) )
 				{
 					SplendidInit.LoginUser(gUSER_ID, "ASDF");
@@ -406,7 +383,7 @@ namespace SplendidWebApi.Controllers
 			else if ( Sql.ToBoolean(Application["CONFIG.Azure.SingleSignOn.Enabled"]) )
 			{
 				// 05/02/2017 Paul.  Need a separate flag for the mobile client. 
-				gUSER_ID = ActiveDirectory.AzureValidateJwt(HttpContext, sPASSWORD, bMOBILE_CLIENT, ref sError);
+				gUSER_ID = ActiveDirectory.AzureValidateJwt(sPASSWORD, bMOBILE_CLIENT, ref sError);
 				if ( !Sql.IsEmptyGuid(gUSER_ID) )
 				{
 					SplendidInit.LoginUser(gUSER_ID, "Azure AD");
@@ -506,15 +483,14 @@ namespace SplendidWebApi.Controllers
 			ClaimsPrincipal principal = new ClaimsPrincipal(identity);
 			await Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignInAsync(HttpContext, CookieAuthenticationDefaults.AuthenticationScheme, principal);
 			
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", gUSER_ID.ToString());
-			return d;
+			return gUSER_ID;
 		}
 
 		// 02/18/2020 Paul.  Allow React Client to forget password. 
 		[AllowAnonymous]
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
-		public string ForgotPassword(string UserName, string Email)
+		public string ForgotPassword([FromQuery] string UserName, [FromQuery] string Email)
 		{
 			string sUSER_NAME   = Sql.ToString(UserName);
 			string sEMAIL       = Sql.ToString(Email   );
@@ -553,108 +529,205 @@ namespace SplendidWebApi.Controllers
 			// 01/25/2022 Paul.  We are now using the Identity to take advantage of [Authorize] attribute. 
 			Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignOutAsync(HttpContext, CookieAuthenticationDefaults.AuthenticationScheme);
 		}
-#endregion
+		#endregion
 
-		#region React State
-		// 05/27/2019 Paul.  Separate call for the React client state. 
-		[AllowAnonymous]
+		// 10/12/2012 Paul.  Instead of making a request for each module, create Get All requests to build the cache more quickly. 
+		#region Get System Layout
 		[HttpGet("[action]")]
-		// https://docs.microsoft.com/en-us/aspnet/core/performance/caching/response?view=aspnetcore-6.0`
 		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-		public Dictionary<string, object> GetReactLoginState()
+		public Dictionary<string, object> GetAllGridViewsColumns()
 		{
+			// 03/02/2019 Paul.  Functions are now static and take modules list input so that they can be used in the Admin API. 
+			// 12/16/2019 Paul.  Moved GetTable to ~/_code/RestUtil.cs
+			List<string> lstMODULES = RestUtil.AccessibleModules();
 			Dictionary<string, object> d       = new Dictionary<string, object>();
 			Dictionary<string, object> results = new Dictionary<string, object>();
+			Dictionary<string, object> objs    = SplendidCache.GetAllGridViewsColumns(lstMODULES);
+			results.Add("results", objs);
 			d.Add("d", results);
 			
-			Dictionary<string, object> CONFIG = SplendidCache.GetLoginConfig();
-			results.Add("CONFIG", CONFIG);
-			
-			Dictionary<string, object> TERMINOLOGY = SplendidCache.GetLoginTerminology();
-			results.Add("TERMINOLOGY", TERMINOLOGY);
-			
-			// 06/24/2019 Paul.  Separate out so that the settings can be returned in GetReactLoginState. 
-			Dictionary<string, object> objSingleSignOnSettings = GetSingleSignOnSettings();
-			results.Add("SingleSignOnSettings", objSingleSignOnSettings);
-
-			string sAUTHENTICATION = "CRM";
-			bool bADFS_SINGLE_SIGN_ON  = Sql.ToBoolean(Application["CONFIG.ADFS.SingleSignOn.Enabled" ]);
-			bool bAZURE_SINGLE_SIGN_ON = Sql.ToBoolean(Application["CONFIG.Azure.SingleSignOn.Enabled"]);
-			// 11/18/2019 Paul.  Include Authentication method. 
-			if ( bADFS_SINGLE_SIGN_ON || bAZURE_SINGLE_SIGN_ON )
-			{
-				sAUTHENTICATION = "SingleSignOn";
-			}
-			else if ( Security.IsWindowsAuthentication() )
-			{
-				sAUTHENTICATION = "Windows";
-			}
-			results.Add("AUTHENTICATION", sAUTHENTICATION);
-			//return JsonSerializer.Serialize(results);
+			// 04/21/2017 Paul.  Count should be returend as a number. 
+			d.Add("__count", objs.Count);
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
 			return d;
 		}
 
 		[HttpGet("[action]")]
-		// https://docs.microsoft.com/en-us/aspnet/core/performance/caching/response?view=aspnetcore-6.0`
 		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-		public Dictionary<string, object> GetReactState()
+		public Dictionary<string, object> GetAllDetailViewsFields()
 		{
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
+			// 03/02/2019 Paul.  Functions are now static and take modules list input so that they can be used in the Admin API. 
+			// 12/16/2019 Paul.  Moved GetTable to ~/_code/RestUtil.cs
+			List<string> lstMODULES = RestUtil.AccessibleModules();
 			Dictionary<string, object> d       = new Dictionary<string, object>();
 			Dictionary<string, object> results = new Dictionary<string, object>();
+			Dictionary<string, object> objs    = SplendidCache.GetAllDetailViewsFields(lstMODULES);
+			results.Add("results", objs);
 			d.Add("d", results);
+			
+			// 04/21/2017 Paul.  Count should be returend as a number. 
+			d.Add("__count", objs.Count);
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
+			return d;
+		}
+
+		[HttpGet("[action]")]
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> GetAllEditViewsFields()
+		{
+			// 03/02/2019 Paul.  Functions are now static and take modules list input so that they can be used in the Admin API. 
+			// 12/16/2019 Paul.  Moved GetTable to ~/_code/RestUtil.cs
+			List<string> lstMODULES = RestUtil.AccessibleModules();
+			Dictionary<string, object> d       = new Dictionary<string, object>();
+			Dictionary<string, object> results = new Dictionary<string, object>();
+			Dictionary<string, object> objs    = SplendidCache.GetAllEditViewsFields(lstMODULES);
+			results.Add("results", objs);
+			d.Add("d", results);
+			
+			// 04/21/2017 Paul.  Count should be returend as a number. 
+			d.Add("__count", objs.Count);
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
+			return d;
+		}
+
+		[HttpGet("[action]")]
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> GetAllDetailViewsRelationships()
+		{
+			// 03/02/2019 Paul.  Functions are now static and take modules list input so that they can be used in the Admin API. 
+			// 12/16/2019 Paul.  Moved GetTable to ~/_code/RestUtil.cs
+			List<string> lstMODULES = RestUtil.AccessibleModules();
+			Dictionary<string, object> d       = new Dictionary<string, object>();
+			Dictionary<string, object> results = new Dictionary<string, object>();
+			Dictionary<string, object> objs    = SplendidCache.GetAllDetailViewsRelationships(lstMODULES);
+			results.Add("results", objs);
+			d.Add("d", results);
+			
+			// 04/21/2017 Paul.  Count should be returend as a number. 
+			d.Add("__count", objs.Count);
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
+			return d;
+		}
+
+		// 02/16/2016 Paul.  Add EditView Relationships for the new layout editor. 
+		[HttpGet("[action]")]
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> GetAllEditViewsRelationships()
+		{
+			// 03/02/2019 Paul.  Functions are now static and take modules list input so that they can be used in the Admin API. 
+			// 12/16/2019 Paul.  Moved GetTable to ~/_code/RestUtil.cs
+			List<string> lstMODULES = RestUtil.AccessibleModules();
+			Dictionary<string, object> d       = new Dictionary<string, object>();
+			Dictionary<string, object> results = new Dictionary<string, object>();
+			Dictionary<string, object> objs    = SplendidCache.GetAllEditViewsRelationships(lstMODULES);
+			results.Add("results", objs);
+			d.Add("d", results);
+			
+			// 04/21/2017 Paul.  Count should be returend as a number. 
+			d.Add("__count", objs.Count);
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
+			return d;
+		}
+
+		[HttpGet("[action]")]
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> GetAllDynamicButtons()
+		{
+			// 03/02/2019 Paul.  Functions are now static and take modules list input so that they can be used in the Admin API. 
+			// 12/16/2019 Paul.  Moved GetTable to ~/_code/RestUtil.cs
+			List<string> lstMODULES = RestUtil.AccessibleModules();
+			Dictionary<string, object> d       = new Dictionary<string, object>();
+			Dictionary<string, object> results = new Dictionary<string, object>();
+			Dictionary<string, object> objs    = SplendidCache.GetAllDynamicButtons(lstMODULES);
+			results.Add("results", objs);
+			d.Add("d", results);
+			
+			// 04/21/2017 Paul.  Count should be returend as a number. 
+			d.Add("__count", objs.Count);
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
+			return d;
+		}
+
+		[HttpGet("[action]")]
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> GetAllTerminology()
+		{
+			// 03/02/2019 Paul.  Functions are now static and take modules list input so that they can be used in the Admin API. 
+			// 12/16/2019 Paul.  Moved GetTable to ~/_code/RestUtil.cs
+			List<string> lstMODULES = RestUtil.AccessibleModules();
+			// 03/26/2019 Paul.  Admin has more custom lists. 
+			Dictionary<string, object> d       = new Dictionary<string, object>();
+			Dictionary<string, object> results = new Dictionary<string, object>();
+			Dictionary<string, object> objs    = SplendidCache.GetAllTerminology(lstMODULES, false);
+			results.Add("results", objs);
+			d.Add("d", results);
+			
+			// 04/21/2017 Paul.  Count should be returend as a number. 
+			d.Add("__count", objs.Count);
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
+			return d;
+		}
+
+		[HttpGet("[action]")]
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> GetAllTerminologyLists()
+		{
+			// 03/26/2019 Paul.  Admin has more custom lists. 
+			Dictionary<string, object> d       = new Dictionary<string, object>();
+			Dictionary<string, object> results = new Dictionary<string, object>();
+			Dictionary<string, object> objs    = SplendidCache.GetAllTerminologyLists(false);
+			results.Add("results", objs);
+			d.Add("d", results);
+			
+			// 04/21/2017 Paul.  Count should be returend as a number. 
+			d.Add("__count", objs.Count);
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
+			return d;
+		}
+
+		[HttpGet("[action]")]
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> GetAllTaxRates()
+		{
+			Dictionary<string, object> d       = new Dictionary<string, object>();
+			Dictionary<string, object> results = new Dictionary<string, object>();
+			Dictionary<string, object> objs    = SplendidCache.GetAllTaxRates();
+			results.Add("results", objs);
+			d.Add("d", results);
+			
+			// 04/21/2017 Paul.  Count should be returend as a number. 
+			d.Add("__count", objs.Count);
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
+			return d;
+		}
+
+		[HttpGet("[action]")]
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> GetAllDiscounts()
+		{
+			Dictionary<string, object> d       = new Dictionary<string, object>();
+			Dictionary<string, object> results = new Dictionary<string, object>();
+			Dictionary<string, object> objs    = SplendidCache.GetAllDiscounts();
+			results.Add("results", objs);
+			d.Add("d", results);
+			
+			// 04/21/2017 Paul.  Count should be returend as a number. 
+			d.Add("__count", objs.Count);
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
+			return d;
+		}
+
+		// 02/27/2016 Paul.  Combine all layout gets. 
+		[DotNetLegacyData]
+		[HttpGet("[action]")]
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> GetAllLayouts()
+		{
+			Dictionary<string, object> results = new Dictionary<string, object>();
 			
 			// 03/02/2019 Paul.  Functions are now static and take modules list input so that they can be used in the Admin API. 
 			// 12/16/2019 Paul.  Moved GetTable to ~/_code/RestUtil.cs
 			List<string> lstMODULES = RestUtil.AccessibleModules();
-			
-			// 05/27/2019 Paul.  Move GetUserProfile to cache for React client. 
-			SplendidCache.UserProfile profile = SplendidCache.GetUserProfile();
-			results.Add("USER_PROFILE", profile);
-			
-			// 12/23/2019 Paul.  Return the team tree as an object tree instead of XML. 
-			results.Add("TEAM_TREE", SplendidCache.GetUserTeamTree());
-			
-			// 07/21/2019 Paul.  We need UserAccess control for buttons. 
-			Dictionary<string, object> MODULE_ACL_ACCESS = SplendidCache.GetModuleAccess(lstMODULES);
-			results.Add("MODULE_ACL_ACCESS", MODULE_ACL_ACCESS);
-			
-			Dictionary<string, object> ACL_ACCESS = SplendidCache.GetUserAccess(lstMODULES);
-			results.Add("ACL_ACCESS", ACL_ACCESS);
-			
-			Dictionary<string, object> ACL_FIELD_ACCESS = SplendidCache.GetUserFieldSecurity(lstMODULES);
-			results.Add("ACL_FIELD_ACCESS", ACL_FIELD_ACCESS);
-			
-			// 01/22/2021 Paul.  Some customizations may be dependent on role name. 
-			List<Dictionary<string, object>>  ACL_ROLES = SplendidCache.GetUserACLRoles();
-			results.Add("ACL_ROLES", ACL_ROLES);
-			
-			// 05/17/2019 Paul.  Return the modules so that we don't need a separate request for it later. 
-			Dictionary<string, object> CONFIG = SplendidCache.GetAllConfig();
-			// 06/10/2023 Paul.  Core app does not support classic UI. 
-			CONFIG["disable_admin_classic"] = true;
-			results.Add("CONFIG", CONFIG);
-			
-			Dictionary<string, object> MODULES = SplendidCache.GetAllModules(lstMODULES);
-			results.Add("MODULES", MODULES);
-			
-			Dictionary<string, object> MODULE_COLUMNS = SplendidCache.GetAllSearchColumns(lstMODULES);
-			results.Add("MODULE_COLUMNS", MODULE_COLUMNS);
-			
-			// 05/26/2019 Paul.  Return Users and Teams in GetAllLayouts. 
-			Dictionary<string, object> USERS = SplendidCache.GetAllUsers();
-			results.Add("USERS", USERS);
-			
-			Dictionary<string, object> TEAMS = SplendidCache.GetAllTeams();
-			results.Add("TEAMS", TEAMS);
-			
-			// 05/16/2019 Paul.  Return the tab menu so that we don't need a separate request for it later. 
-			List<object> TAB_MENU = SplendidCache.GetAllTabMenus();
-			results.Add("TAB_MENU", TAB_MENU);
-			
 			// 02/22/2021 Paul.  The React client needs a way to determine the default sort, besides NAME asc. 
 			Dictionary<string, object> GRIDVIEWS = SplendidCache.GetAllGridViews(lstMODULES);
 			results.Add("GRIDVIEWS", GRIDVIEWS);
@@ -677,10 +750,6 @@ namespace SplendidWebApi.Controllers
 			Dictionary<string, object> DYNAMIC_BUTTONS = SplendidCache.GetAllDynamicButtons(lstMODULES);
 			results.Add("DYNAMIC_BUTTONS", DYNAMIC_BUTTONS);
 			
-			// 08/15/2019 Paul.  Add support for menu shortcuts. 
-			Dictionary<string, object> SHORTCUTS = SplendidCache.GetAllShortcuts(lstMODULES);
-			results.Add("SHORTCUTS", SHORTCUTS);
-			
 			// 03/26/2019 Paul.  Admin has more custom lists. 
 			Dictionary<string, object> TERMINOLOGY_LISTS = SplendidCache.GetAllTerminologyLists(false);
 			results.Add("TERMINOLOGY_LISTS", TERMINOLOGY_LISTS);
@@ -689,34 +758,59 @@ namespace SplendidWebApi.Controllers
 			Dictionary<string, object> TERMINOLOGY = SplendidCache.GetAllTerminology(lstMODULES, false);
 			results.Add("TERMINOLOGY", TERMINOLOGY);
 			
-			// 07/01/2019 Paul.  The SubPanelsView needs to understand how to manage all relationships. 
-			Dictionary<string, object> RELATIONSHIPS = SplendidCache.GetAllRelationships();
-			results.Add("RELATIONSHIPS", RELATIONSHIPS);
+			Dictionary<string, object> TAX_RATES = SplendidCache.GetAllTaxRates();
+			results.Add("TAX_RATES", TAX_RATES);
 			
-			// 09/12/2019 Paul.  User Profile needs the timezones and currencies. 
-			Dictionary<string, object> TIMEZONES = SplendidCache.GetAllTimezones();
-			results.Add("TIMEZONES", TIMEZONES);
+			Dictionary<string, object> DISCOUNTS = SplendidCache.GetAllDiscounts();
+			results.Add("DISCOUNTS", DISCOUNTS);
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
+			return results;
+		}
+		#endregion
+
+		#region React State
+		// 05/27/2019 Paul.  Separate call for the React client state. 
+		[AllowAnonymous]
+		[DotNetLegacyData]
+		[HttpGet("[action]")]
+		// https://docs.microsoft.com/en-us/aspnet/core/performance/caching/response?view=aspnetcore-6.0`
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> GetReactLoginState()
+		{
+			Dictionary<string, object> results = new Dictionary<string, object>();
 			
-			Dictionary<string, object> CURRENCIES = SplendidCache.GetAllCurrencies();
-			results.Add("CURRENCIES", CURRENCIES);
+			Dictionary<string, object> CONFIG = SplendidCache.GetLoginConfig();
+			results.Add("CONFIG", CONFIG);
 			
-			Dictionary<string, object> LANGUAGES = SplendidCache.GetAllLanguages();
-			results.Add("LANGUAGES", LANGUAGES);
+			Dictionary<string, object> TERMINOLOGY = SplendidCache.GetLoginTerminology();
+			results.Add("TERMINOLOGY", TERMINOLOGY);
 			
-			Dictionary<string, object> LAST_VIEWED = SplendidCache.GetAllLastViewed();
-			results.Add("LAST_VIEWED", LAST_VIEWED);
-			
-			Dictionary<string, object> SAVED_SEARCH = SplendidCache.GetAllSavedSearch(lstMODULES);
-			results.Add("SAVED_SEARCH", SAVED_SEARCH);
-			
-			// 05/24/2019 Paul.  Return Dashboard in GetAllLayouts. 
-			Dictionary<string, object> DASHBOARDS = SplendidCache.GetAllDashboards();
-			results.Add("DASHBOARDS", DASHBOARDS);
-			
-			Dictionary<string, object> DASHBOARDS_PANELS = SplendidCache.GetAllDashboardPanels(lstMODULES);
-			results.Add("DASHBOARDS_PANELS", DASHBOARDS_PANELS);
-			
-			// 08/09/2020 Paul.  Convert to comma separated string. 
+			// 12/10/2022 Paul.  Allow Login Terminology Lists to be customized. 
+			List<string> lstLIST_NAME = new List<string>();
+			Dictionary<string, object> TERMINOLOGY_LISTS = SplendidCache.GetLoginTerminologyLists(lstLIST_NAME, TERMINOLOGY);
+			results.Add("TERMINOLOGY_LISTS", TERMINOLOGY_LISTS);
+
+			// 06/24/2019 Paul.  Separate out so that the settings can be returned in GetReactLoginState. 
+			Dictionary<string, object> objSingleSignOnSettings = GetSingleSignOnSettings();
+			results.Add("SingleSignOnSettings", objSingleSignOnSettings);
+
+			string sAUTHENTICATION = "CRM";
+			bool bADFS_SINGLE_SIGN_ON  = Sql.ToBoolean(Application["CONFIG.ADFS.SingleSignOn.Enabled" ]);
+			bool bAZURE_SINGLE_SIGN_ON = Sql.ToBoolean(Application["CONFIG.Azure.SingleSignOn.Enabled"]);
+			// 11/18/2019 Paul.  Include Authentication method. 
+			if ( bADFS_SINGLE_SIGN_ON || bAZURE_SINGLE_SIGN_ON )
+			{
+				sAUTHENTICATION = "SingleSignOn";
+			}
+			else if ( Security.IsWindowsAuthentication() )
+			{
+				sAUTHENTICATION = "Windows";
+			}
+			results.Add("AUTHENTICATION", sAUTHENTICATION);
+
+			// 12/07/2022 Paul.  Allow the LoginView to be customized. 
+			List<string> lstMODULES = new List<string>();
+			lstMODULES.Add("Home");
 			string sModuleList = String.Join(",", lstMODULES.ToArray());
 			Dictionary<string, object> objs = memoryCache.Get("ReactCustomViews." + sModuleList) as Dictionary<string, object>;
 #if DEBUG
@@ -725,19 +819,344 @@ namespace SplendidWebApi.Controllers
 			if ( objs == null )
 			{
 				objs = new Dictionary<string, object>();
-				SplendidCache.GetAllReactCustomViews(objs, lstMODULES, "~/React/src/CustomViewsJS", false);
-				// 05/23/2019 Paul.  Include Dashlet views, but we do not yet have a way to separate by module. 
-				SplendidCache.GetAllReactDashletViews(objs, lstMODULES, "~/React/src/DashletsJS");
+				SplendidCache.GetAllReactCustomViews(objs, lstMODULES, "~/React/src/CustomViewsJS", false, true);
 				memoryCache.Set("ReactCustomViews." + sModuleList, objs, SplendidCache.DefaultCacheExpiration());
 			}
 			results.Add("REACT_CUSTOM_VIEWS", objs);
-			// 07/12/2021 Paul.  Attempt to track timeout so that we can determine stale React state. 
-			results.Add("SessionStateTimeout", HttpSessionState.Timeout);
-			return d;
+			return results;
+		}
+
+		[DotNetLegacyData]
+		[HttpGet("[action]")]
+		// https://docs.microsoft.com/en-us/aspnet/core/performance/caching/response?view=aspnetcore-6.0`
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> GetReactState()
+		{
+			Dictionary<string, object> results = new Dictionary<string, object>();
+			
+			// 03/02/2019 Paul.  Functions are now static and take modules list input so that they can be used in the Admin API. 
+			// 12/16/2019 Paul.  Moved GetTable to ~/_code/RestUtil.cs
+			List<string> lstMODULES = RestUtil.AccessibleModules();
+			
+			// 02/18/2023 Paul.  Gather metrics.  Noticed odd slowless with SQL 2019. 
+			DateTime dtStart = DateTime.Now;
+			Dictionary<string, double> metrics = new Dictionary<string, double>();
+			try
+			{
+				// 05/27/2019 Paul.  Move GetUserProfile to cache for React client. 
+				SplendidCache.UserProfile profile = SplendidCache.GetUserProfile();
+				results.Add("USER_PROFILE", profile);
+				metrics.Add("USER_PROFILE", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 12/23/2019 Paul.  Return the team tree as an object tree instead of XML. 
+				results.Add("TEAM_TREE", SplendidCache.GetUserTeamTree());
+				metrics.Add("TEAM_TREE", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 07/21/2019 Paul.  We need UserAccess control for buttons. 
+				Dictionary<string, object> MODULE_ACL_ACCESS = SplendidCache.GetModuleAccess(lstMODULES);
+				results.Add("MODULE_ACL_ACCESS", MODULE_ACL_ACCESS);
+				metrics.Add("MODULE_ACL_ACCESS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> ACL_ACCESS = SplendidCache.GetUserAccess(lstMODULES);
+				results.Add("ACL_ACCESS", ACL_ACCESS);
+				metrics.Add("ACL_ACCESS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> ACL_FIELD_ACCESS = SplendidCache.GetUserFieldSecurity(lstMODULES);
+				results.Add("ACL_FIELD_ACCESS", ACL_FIELD_ACCESS);
+				metrics.Add("ACL_FIELD_ACCESS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 01/22/2021 Paul.  Some customizations may be dependent on role name. 
+				List<Dictionary<string, object>>  ACL_ROLES = SplendidCache.GetUserACLRoles();
+				results.Add("ACL_ROLES", ACL_ROLES);
+				metrics.Add("ACL_ROLES", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 05/17/2019 Paul.  Return the modules so that we don't need a separate request for it later. 
+				Dictionary<string, object> CONFIG = SplendidCache.GetAllConfig();
+				// 06/10/2023 Paul.  Core app does not support classic UI. 
+				CONFIG["disable_admin_classic"] = true;
+				// 06/19/2023 Paul.  Separate implementation for SignalR on ASP.NET Core. 
+				CONFIG["SignalR.Core"] = true;
+				results.Add("CONFIG", CONFIG);
+				metrics.Add("CONFIG", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> MODULES = SplendidCache.GetAllModules(lstMODULES);
+				results.Add("MODULES", MODULES);
+				metrics.Add("MODULES", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> MODULE_COLUMNS = SplendidCache.GetAllSearchColumns(lstMODULES);
+				results.Add("MODULE_COLUMNS", MODULE_COLUMNS);
+				metrics.Add("MODULE_COLUMNS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 05/26/2019 Paul.  Return Users and Teams in GetAllLayouts. 
+				Dictionary<string, object> USERS = SplendidCache.GetAllUsers();
+				results.Add("USERS", USERS);
+				metrics.Add("USERS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> TEAMS = SplendidCache.GetAllTeams();
+				results.Add("TEAMS", TEAMS);
+				metrics.Add("TEAMS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 05/16/2019 Paul.  Return the tab menu so that we don't need a separate request for it later. 
+				List<object> TAB_MENU = SplendidCache.GetAllTabMenus();
+				results.Add("TAB_MENU", TAB_MENU);
+				metrics.Add("TAB_MENU", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 02/22/2021 Paul.  The React client needs a way to determine the default sort, besides NAME asc. 
+				Dictionary<string, object> GRIDVIEWS = SplendidCache.GetAllGridViews(lstMODULES);
+				results.Add("GRIDVIEWS", GRIDVIEWS);
+				metrics.Add("GRIDVIEWS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> GRIDVIEWS_COLUMNS = SplendidCache.GetAllGridViewsColumns(lstMODULES);
+				results.Add("GRIDVIEWS_COLUMNS", GRIDVIEWS_COLUMNS);
+				metrics.Add("GRIDVIEWS_COLUMNS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> DETAILVIEWS_FIELDS = SplendidCache.GetAllDetailViewsFields(lstMODULES);
+				results.Add("DETAILVIEWS_FIELDS", DETAILVIEWS_FIELDS);
+				metrics.Add("DETAILVIEWS_FIELDS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> EDITVIEWS_FIELDS = SplendidCache.GetAllEditViewsFields(lstMODULES);
+				results.Add("EDITVIEWS_FIELDS", EDITVIEWS_FIELDS);
+				metrics.Add("EDITVIEWS_FIELDS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> DETAILVIEWS_RELATIONSHIPS = SplendidCache.GetAllDetailViewsRelationships(lstMODULES);
+				results.Add("DETAILVIEWS_RELATIONSHIPS", DETAILVIEWS_RELATIONSHIPS);
+				metrics.Add("DETAILVIEWS_RELATIONSHIPS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> EDITVIEWS_RELATIONSHIPS = SplendidCache.GetAllEditViewsRelationships(lstMODULES);
+				results.Add("EDITVIEWS_RELATIONSHIPS", EDITVIEWS_RELATIONSHIPS);
+				metrics.Add("EDITVIEWS_RELATIONSHIPS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> DYNAMIC_BUTTONS = SplendidCache.GetAllDynamicButtons(lstMODULES);
+				results.Add("DYNAMIC_BUTTONS", DYNAMIC_BUTTONS);
+				metrics.Add("DYNAMIC_BUTTONS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 08/15/2019 Paul.  Add support for menu shortcuts. 
+				Dictionary<string, object> SHORTCUTS = SplendidCache.GetAllShortcuts(lstMODULES);
+				results.Add("SHORTCUTS", SHORTCUTS);
+				metrics.Add("SHORTCUTS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 03/26/2019 Paul.  Admin has more custom lists. 
+				Dictionary<string, object> TERMINOLOGY_LISTS = SplendidCache.GetAllTerminologyLists(false);
+				results.Add("TERMINOLOGY_LISTS", TERMINOLOGY_LISTS);
+				metrics.Add("TERMINOLOGY_LISTS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 03/26/2019 Paul.  Admin has more custom lists. 
+				Dictionary<string, object> TERMINOLOGY = SplendidCache.GetAllTerminology(lstMODULES, false);
+				results.Add("TERMINOLOGY", TERMINOLOGY);
+				metrics.Add("TERMINOLOGY", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 07/01/2019 Paul.  The SubPanelsView needs to understand how to manage all relationships. 
+				Dictionary<string, object> RELATIONSHIPS = SplendidCache.GetAllRelationships();
+				results.Add("RELATIONSHIPS", RELATIONSHIPS);
+				metrics.Add("RELATIONSHIPS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> TAX_RATES = SplendidCache.GetAllTaxRates();
+				results.Add("TAX_RATES", TAX_RATES);
+				metrics.Add("TAX_RATES", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> DISCOUNTS = SplendidCache.GetAllDiscounts();
+				results.Add("DISCOUNTS", DISCOUNTS);
+				metrics.Add("DISCOUNTS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 09/12/2019 Paul.  User Profile needs the timezones and currencies. 
+				Dictionary<string, object> TIMEZONES = SplendidCache.GetAllTimezones();
+				results.Add("TIMEZONES", TIMEZONES);
+				metrics.Add("TIMEZONES", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> CURRENCIES = SplendidCache.GetAllCurrencies();
+				results.Add("CURRENCIES", CURRENCIES);
+				metrics.Add("CURRENCIES", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> LANGUAGES = SplendidCache.GetAllLanguages();
+				results.Add("LANGUAGES", LANGUAGES);
+				metrics.Add("LANGUAGES", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 04/28/2019 Paul.  Flag to include Favorites and LastViewed for the React client. 
+				Dictionary<string, object> FAVORITES = SplendidCache.GetAllFavorites();
+				results.Add("FAVORITES", FAVORITES);
+				metrics.Add("FAVORITES", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> LAST_VIEWED = SplendidCache.GetAllLastViewed();
+				results.Add("LAST_VIEWED", LAST_VIEWED);
+				metrics.Add("LAST_VIEWED", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> SAVED_SEARCH = SplendidCache.GetAllSavedSearch(lstMODULES);
+				results.Add("SAVED_SEARCH", SAVED_SEARCH);
+				metrics.Add("SAVED_SEARCH", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 05/24/2019 Paul.  Return Dashboard in GetAllLayouts. 
+				Dictionary<string, object> DASHBOARDS = SplendidCache.GetAllDashboards();
+				results.Add("DASHBOARDS", DASHBOARDS);
+				metrics.Add("DASHBOARDS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				Dictionary<string, object> DASHBOARDS_PANELS = SplendidCache.GetAllDashboardPanels(lstMODULES);
+				results.Add("DASHBOARDS_PANELS", DASHBOARDS_PANELS);
+				metrics.Add("DASHBOARDS_PANELS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 05/03/2020 Paul.  Emails.EditView should use cached list of signatures. 
+				Dictionary<string, object> SIGNATURES = SplendidCache.GetUserSignatures();
+				results.Add("SIGNATURES", SIGNATURES);
+				metrics.Add("SIGNATURES", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 05/05/2020 Paul.  Emails.EditView should use cached list of OutboundMail. 
+				Dictionary<string, object> OUTBOUND_EMAILS = SplendidCache.GetOutboundMail();
+				results.Add("OUTBOUND_EMAILS", OUTBOUND_EMAILS);
+				metrics.Add("OUTBOUND_EMAILS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 05/05/2020 Paul.  Emails.EditView should use cached list of OutboundSms. 
+				// 09/24/2021 Paul.  Wrong lis was being used. 
+				Dictionary<string, object> OUTBOUND_SMS = SplendidCache.GetOutboundSms();
+				results.Add("OUTBOUND_SMS", OUTBOUND_SMS);
+				metrics.Add("OUTBOUND_SMS", (DateTime.Now - dtStart).TotalSeconds);
+				dtStart = DateTime.Now;
+			
+				// 08/09/2020 Paul.  Convert to comma separated string. 
+				string sModuleList = String.Join(",", lstMODULES.ToArray());
+				Dictionary<string, object> objs = memoryCache.Get("ReactCustomViews." + sModuleList) as Dictionary<string, object>;
+#if DEBUG
+				objs = null;
+#endif
+				if ( objs == null )
+				{
+					objs = new Dictionary<string, object>();
+					// 12/07/2022 Paul.  Allow the LoginView to be customized. 
+					SplendidCache.GetAllReactCustomViews(objs, lstMODULES, "~/React/src/CustomViewsJS", false, false);
+					// 05/23/2019 Paul.  Include Dashlet views, but we do not yet have a way to separate by module. 
+					SplendidCache.GetAllReactDashletViews(objs, lstMODULES, "~/React/src/DashletsJS");
+					memoryCache.Set("ReactCustomViews." + sModuleList, objs, SplendidCache.DefaultCacheExpiration());
+				}
+				results.Add("REACT_CUSTOM_VIEWS", objs);
+				metrics.Add("REACT_CUSTOM_VIEWS", (DateTime.Now - dtStart).TotalSeconds);
+				results.Add("Metrics", metrics);
+				// 07/12/2021 Paul.  Attempt to track timeout so that we can determine stale React state. 
+				//results.Add("SessionStateTimeout", Session.Timeout);
+			}
+			catch(Exception ex)
+			{
+				Debug.WriteLine(ex.Message);
+				StringBuilder sb = new StringBuilder();
+				foreach ( string key in metrics.Keys )
+				{
+					sb.AppendLine("  " + key + Strings.Space(30 - key.Length) + ": " + metrics[key].ToString() + " sec");
+				}
+				Debug.Write(sb.ToString());
+				throw(new Exception(ex.Message + ControlChars.CrLf + sb.ToString()));
+			}
+			return results;
 		}
 		#endregion
 
 		#region Get
+		// 08/11/2012 Paul.  Add ability to search phone numbers using REST API. 
+		[HttpGet("[action]")]
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> PhoneSearch([FromQuery] string PhoneNumber)
+		{
+			PhoneNumber = Utils.NormalizePhone(PhoneNumber);
+			
+			StringBuilder sbDumpSQL = new StringBuilder();
+			// Accounts, Contacts, Leads, Prospects, Calls
+			DataTable dtPhones = new DataTable();
+			dtPhones.Columns.Add("ID"         , Type.GetType("System.Guid"  ));
+			dtPhones.Columns.Add("NAME"       , Type.GetType("System.String"));
+			dtPhones.Columns.Add("MODULE_NAME", Type.GetType("System.String"));
+			if ( !Sql.IsEmptyString(PhoneNumber) )
+			{
+				DataTable dtFields = SplendidCache.DetailViewRelationships("Home.PhoneSearch");
+				SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					con.Open();
+					using ( IDbCommand cmd = con.CreateCommand() )
+					{
+						foreach ( DataRow rowModule in dtFields.Rows )
+						{
+							string sMODULE_NAME = Sql.ToString(rowModule["MODULE_NAME"]);
+							int nACLACCESS = Security.GetUserAccess(sMODULE_NAME, "list");
+							if ( sMODULE_NAME != "Calls" && nACLACCESS >= 0 )
+							{
+								string sSQL = String.Empty;
+								sSQL = "select ID              " + ControlChars.CrLf
+								     + "     , NAME            " + ControlChars.CrLf
+								     + "  from vwPHONE_NUMBERS_" + Modules.TableName(sMODULE_NAME) + ControlChars.CrLf;
+								cmd.CommandText = sSQL;
+								Security.Filter(cmd, sMODULE_NAME, "list");
+								//Sql.AppendParameter(cmd, sPhoneNumber, Sql.SqlFilterMode.Contains, "NORMALIZED_NUMBER");
+								SearchBuilder sb = new SearchBuilder(PhoneNumber, cmd);
+								cmd.CommandText += sb.BuildQuery("   and ", "NORMALIZED_NUMBER");
+								cmd.CommandText += "order by NAME";
+
+								string sDumbSQL = Sql.ExpandParameters(cmd);
+								sbDumpSQL.Append(sDumbSQL);
+								using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+								{
+									((IDbDataAdapter)da).SelectCommand = cmd;
+									using ( DataTable dt = new DataTable() )
+									{
+										da.Fill(dt);
+										foreach ( DataRow row in dt.Rows )
+										{
+											DataRow rowPhone = dtPhones.NewRow();
+											rowPhone["ID"         ] = row["ID"  ];
+											rowPhone["NAME"       ] = row["NAME"];
+											rowPhone["MODULE_NAME"] = sMODULE_NAME;
+											dtPhones.Rows.Add(rowPhone);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			
+			string sBaseURI = Request.Scheme + "://" + Request.Host.Host + Request.Path.Value.Replace("/PhoneSearch", "/GetModuleItem");
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
+			Dictionary<string, object> dictResponse = RestUtil.ToJson(sBaseURI, "Leads", dtPhones, T10n);
+			dictResponse.Add("__total", dtPhones.Rows.Count);
+			// 11/19/2019 Paul.  Return the SQL to the React Client. 
+			if ( Sql.ToBoolean(Application["CONFIG.show_sql"]) )
+			{
+				dictResponse.Add("__sql", sbDumpSQL.ToString());
+			}
+			return dictResponse;
+		}
+
 		// 10/16/2011 Paul.  HTML5 Offline Client needs access to the custom lists. 
 		[HttpGet("[action]")]
 		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
@@ -746,11 +1165,6 @@ namespace SplendidWebApi.Controllers
 			if ( Sql.IsEmptyString(ListName) )
 				throw(new Exception("The list name must be specified."));
 			// 08/22/2011 Paul.  Add admin control to REST API. 
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			DataTable dt = new DataTable();
 			dt.Columns.Add("NAME"        );
 			dt.Columns.Add("DISPLAY_NAME");
@@ -893,7 +1307,7 @@ namespace SplendidWebApi.Controllers
 
 		// 05/25/2017 Paul.  Add support for Post operation so that we can support large Search operations in the new Dashboard. 
 		[HttpPost("[action]")]
-		public Dictionary<string, object> PostModuleTable([FromBody] IDictionary<string, object> dict)
+		public Dictionary<string, object> PostModuleTable([FromBody] Dictionary<string, object> dict)
 		{
 			string TableName         = Sql.ToString (Request.Query["TableName" ]);
 			int    nSKIP             = Sql.ToInteger(Request.Query["$skip"     ]);
@@ -1031,10 +1445,6 @@ namespace SplendidWebApi.Controllers
 				// 05/21/2017 Paul.  Need to prevent two types. 
 				// https://www.visualstudio.com/en-us/docs/report/analytics/aggregated-data-analytics
 				throw(new Exception("$groupby and $apply cannot both be specified. "));
-			}
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
 			}
 			// 08/22/2011 Paul.  Add admin control to REST API. 
 			string sMODULE_NAME = Sql.ToString(Application["Modules." + TableName + ".ModuleName"]);
@@ -1213,10 +1623,338 @@ namespace SplendidWebApi.Controllers
 			return dictResponse;
 		}
 
+		[HttpGet("[action]")]
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> GetActivitiesList([FromQuery] string PARENT_TYPE, [FromQuery] Guid PARENT_ID)
+		{
+			string ModuleName  = "Activities";
+			// 08/22/2011 Paul.  Add admin control to REST API. 
+			int nACLACCESS = Security.GetUserAccess(ModuleName, "list");
+			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + ModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
+			{
+				// 09/06/2017 Paul.  Include module name in error. 
+				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + Sql.ToString(ModuleName)));
+			}
+			
+			bool   bIncludeRelationships = Sql.ToBoolean(Request.Query["IncludeRelationships"]);
+			int    nSKIP        = Sql.ToInteger(Request.Query["$skip"       ]);
+			int    nTOP         = Sql.ToInteger(Request.Query["$top"        ]);
+			string sFILTER      = Sql.ToString (Request.Query["$filter"     ]);
+			string sORDER_BY    = Sql.ToString (Request.Query["$orderby"    ]);
+			// 08/03/2011 Paul.  We need a way to filter the columns so that we can be efficient. 
+			string sSELECT      = Sql.ToString (Request.Query["$select"     ]);
+			// 12/03/2019 Paul.  The React Client needs access to archive data. 
+			bool   bArchiveView = Sql.ToBoolean(Request.Query["$archiveView"]);
+			
+			Regex r = new Regex(@"[^A-Za-z0-9_]");
+			// 10/19/2016 Paul.  We need to filter out quoted strings. 
+			string sFILTER_KEYWORDS = Sql.SqlFilterLiterals(sFILTER);
+			sFILTER_KEYWORDS = (" " + r.Replace(sFILTER_KEYWORDS, " ") + " ").ToLower();
+			// 10/19/2016 Paul.  Add more rules to allow select keyword to be part of the contents. 
+			// We do this to allow Full-Text Search, which is implemented as a sub-query. 
+			int nSelectIndex     = sFILTER_KEYWORDS.IndexOf(" select ");
+			int nFromIndex       = sFILTER_KEYWORDS.IndexOf(" from ");
+			// 11/18/2019 Paul.  Remove all support for subqueries now that we support Post with search values. 
+			//int nContainsIndex   = sFILTER_KEYWORDS.IndexOf(" contains ");
+			if ( nSelectIndex >= 0 && nFromIndex > nSelectIndex )
+			{
+				//if ( !(nContainsIndex > nFromIndex) )
+					throw(new Exception("Subqueries are not allowed."));
+			}
+
+			UniqueStringCollection arrSELECT = new UniqueStringCollection();
+			sSELECT = sSELECT.Replace(" ", "");
+			if ( !Sql.IsEmptyString(sSELECT) )
+			{
+				foreach ( string s in sSELECT.Split(',') )
+				{
+					string sColumnName = r.Replace(s, "");
+					if ( !Sql.IsEmptyString(sColumnName) )
+						arrSELECT.Add(sColumnName);
+				}
+			}
+			
+			// 06/17/2013 Paul.  Add support for GROUP BY. 
+			// 04/21/2017 Paul.  We need to return the total when using nTOP. 
+			long lTotalCount = 0;
+			// 05/21/2017 Paul.  HTML5 Dashboard requires aggregates. 
+			// 08/01/2019 Paul.  We need a ListView and EditView flags for the Rest Client. 
+			// 10/26/2019 Paul.  Return the SQL to the React Client. 
+			// 12/03/2019 Paul.  The React Client needs access to archive data. 
+			StringBuilder sbDumpSQL = new StringBuilder();
+			DataTable dt = GetActivities(nSKIP, nTOP, sFILTER, sORDER_BY, arrSELECT, ref lTotalCount, Sql.ToString(PARENT_TYPE), Sql.ToGuid(PARENT_ID), bIncludeRelationships, bArchiveView, sbDumpSQL);
+			
+			string sBaseURI = Request.Scheme + "://" + Request.Host.Host + Request.Path.Value.Replace("/GetActivitiesList", "/GetModuleItem");
+			// 04/21/2017 Paul.  We need to return the total when using nTOP. 
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
+			Dictionary<string, object> dictResponse = RestUtil.ToJson(sBaseURI, ModuleName, dt, T10n);
+			dictResponse.Add("__total", lTotalCount);
+			// 10/26/2019 Paul.  Return the SQL to the React Client. 
+			if ( Sql.ToBoolean(Application["CONFIG.show_sql"]) )
+			{
+				dictResponse.Add("__sql", sbDumpSQL.ToString());
+			}
+			return dictResponse;
+		}
+
+		// 10/26/2019 Paul.  Return the SQL to the React Client. 
+		// 12/03/2019 Paul.  The React Client needs access to archive data. 
+		private DataTable GetActivities(int nSKIP, int nTOP, string sFILTER, string sORDER_BY, UniqueStringCollection arrSELECT, ref long lTotalCount, string sPARENT_TYPE, Guid gPARENT_ID, bool bIncludeRelationships, bool bArchiveView, StringBuilder sbDumpSQL)
+		{
+			// 05/19/2018 Paul.  Capture the last command for error tracking. 
+			string sLastCommand = String.Empty;
+			DataTable dt = null;
+			try
+			{
+				// 09/03/2011 Paul.  We should use the cached layout tables instead of a database lookup for performance reasons. 
+				// When getting the layout tables, we typically only need the view name, so extract from the filter string. 
+				// The Regex match will allow an OData query. 
+				if ( Security.IsAuthenticated() )
+				{
+					string sMATCH_NAME = String.Empty;
+					string sTABLE_NAME = "ACTIVITIES";
+					SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+					Regex r = new Regex(@"[^A-Za-z0-9_]");
+					using ( IDbConnection con = dbf.CreateConnection() )
+					{
+						con.Open();
+						// 06/03/2011 Paul.  Cache the Rest Table data. 
+						using ( DataTable dtSYNC_TABLES = SplendidCache.RestTables(sTABLE_NAME, false) )
+						{
+							string sSQL = String.Empty;
+							if ( dtSYNC_TABLES != null && dtSYNC_TABLES.Rows.Count > 0 )
+							{
+								DataRow rowSYNC_TABLE = dtSYNC_TABLES.Rows[0];
+								string sMODULE_NAME         = "Activities";
+								string sVIEW_NAME           = "vwACTIVITIES";
+								bool    bIS_ASSIGNED         = true;
+								string  sASSIGNED_FIELD_NAME = "ACTIVITY_ASSIGNED_USER_ID";
+								// 08/02/2019 Paul.  The React Client will need access to views that require a filter, like CAMPAIGN_ID. 
+								string sREQUIRED_FIELDS = String.Empty;
+								if ( dtSYNC_TABLES.Columns.Contains("REQUIRED_FIELDS") )
+								{
+									sREQUIRED_FIELDS = Sql.ToString (rowSYNC_TABLE["REQUIRED_FIELDS"]);
+								}
+								// 12/03/2019 Paul.  The React Client needs access to archive data. 
+								if ( bArchiveView && SplendidCache.ArchiveViewExists(sVIEW_NAME) )
+								{
+									sVIEW_NAME += "_ARCHIVE";
+								}
+								
+								// 08/03/2011 Paul.  We need a way to filter the columns so that we can be efficient. 
+								if ( arrSELECT != null && arrSELECT.Count > 0 )
+								{
+									foreach ( string sColumnName in arrSELECT )
+									{
+										if ( Sql.IsEmptyString(sSQL) )
+											sSQL += "select " + sVIEW_NAME + "." + sColumnName + ControlChars.CrLf;
+										else
+											sSQL += "     , " + sVIEW_NAME + "." + sColumnName + ControlChars.CrLf;
+									}
+								}
+								else
+								{
+									sSQL = "select " + sVIEW_NAME + ".*" + ControlChars.CrLf;
+								}
+								// 11/20/2017 Paul.  Use a module-based flag so that Record Level Security is only enabled when needed. 
+								// 08/30/2019 Paul.  I don't think we need record level security for activities. 
+								//sSQL += Sql.AppendRecordLevelSecurityField(sMODULE_NAME, "edit", sVIEW_NAME);
+								// 07/01/2018 Paul.  Add data privacy flag for the module. 
+								// 08/29/2019 Paul.  I don't think data privacy applies to activities. 
+								//bool   bIS_DATA_PRIVACY_MODULE = false;
+								//if ( Crm.Config.enable_data_privacy() && dtSYNC_TABLES.Columns.Contains("IS_DATA_PRIVACY_MODULE") )
+								//{
+								//	bIS_DATA_PRIVACY_MODULE = Sql.ToBoolean(rowSYNC_TABLE["IS_DATA_PRIVACY_MODULE"]);
+								//}
+								//if ( bIS_DATA_PRIVACY_MODULE )
+								//	sSQL += Sql.AppendDataPrivacyField(sVIEW_NAME);
+								
+								// 04/21/2017 Paul.  We need to return the total when using nTOP. 
+								string sSelectSQL = sSQL;
+								// 06/18/2011 Paul.  The REST API tables will use the view properly, so there is no need to join to the CSTM table. 
+								sSQL += "  from " + sVIEW_NAME        + ControlChars.CrLf;
+								using ( IDbCommand cmd = con.CreateCommand() )
+								{
+									cmd.CommandText = sSQL;
+									cmd.CommandTimeout = 0;
+									// 02/14/2010 Paul.  GetTable should only require read-only access. 
+									// We were previously requiring Edit access, but that seems to be a high bar. 
+									Security.Filter(cmd, sMODULE_NAME, "view");
+									// 06/18/2011 Paul.  Tables that are filtered by user should have an explicit filter added. 
+									if ( sASSIGNED_FIELD_NAME == "USER_ID" )
+									{
+										Sql.AppendParameter(cmd, Security.USER_ID, "USER_ID");
+									}
+									// 05/15/2017 Paul.  Just started using IS_ASSIGNED flag. 
+									else if ( bIS_ASSIGNED && sASSIGNED_FIELD_NAME == "PARENT_ASSIGNED_USER_ID" )
+									{
+										Sql.AppendParameter(cmd, Security.USER_ID, "PARENT_ASSIGNED_USER_ID");
+									}
+									if ( !Sql.IsEmptyString(sFILTER) )
+									{
+										// 03/06/2019 Paul.  Move ConvertODataFilter to Sql so that it can be used in the Admin REST API. 
+										// 04/01/2020 Paul.  Move json utils to RestUtil. 
+										string sSQL_FILTER = RestUtil.ConvertODataFilter(sFILTER, cmd);
+										cmd.CommandText += "   and (" + sSQL_FILTER + ")" + ControlChars.CrLf;
+										// 08/02/2019 Paul.  The React Client will need access to views that require a filter, like CAMPAIGN_ID. 
+										if ( !Sql.IsEmptyString(sREQUIRED_FIELDS) )
+										{
+											// 07/05/2021 Paul.  Allow comma as separator. 
+											string[] arrREQUIRED_FIELDS = sREQUIRED_FIELDS.ToUpper().Replace(",", " ").Split(' ');
+											string sSQL_FILTER_NORMALIZED = sSQL_FILTER.ToUpper().Replace(" ", "");
+											string sMISSING_FIELDS = String.Empty;
+											foreach ( string sREQUIRED_FIELD in arrREQUIRED_FIELDS )
+											{
+												if ( !sSQL_FILTER_NORMALIZED.Contains(sREQUIRED_FIELD + "=") )
+												{
+													if ( !Sql.IsEmptyString(sMISSING_FIELDS) )
+														sMISSING_FIELDS += " ";
+													sMISSING_FIELDS += sREQUIRED_FIELD;
+												}
+											}
+											if ( !Sql.IsEmptyString(sMISSING_FIELDS) )
+											{
+												throw(new Exception("Missing required fields: " + sMISSING_FIELDS));
+											}
+										}
+									}
+									// 08/02/2019 Paul.  The React Client will need access to views that require a filter, like CAMPAIGN_ID. 
+									else if ( !Sql.IsEmptyString(sREQUIRED_FIELDS) )
+									{
+										throw(new Exception("Missing required fields: " + sREQUIRED_FIELDS));
+									}
+									// 01/26/2020 Paul.  ApplyRelationshipView will replace PARENT_ID = @PARENT_ID with relationship includes. 
+									Sql.AppendParameter(cmd, gPARENT_ID, "PARENT_ID");
+									// 10/31/2021 Paul.  Moved ApplyRelationshipView to ModuleUtils. 
+									Activities.ApplyRelationshipView(cmd, sPARENT_TYPE, gPARENT_ID, bIncludeRelationships);
+									// 10/27/2015 Paul.  The HTML5 code uses encodeURIComponent(sSORT_FIELD + ' ' + sSORT_DIRECTION), so if both values are blank, we will get a string with a single space. 
+									// 02/13/2018 Paul.  Order By must follow Group By. 
+									if ( Sql.IsEmptyString(sORDER_BY.Trim()) )
+									{
+										sORDER_BY = " order by " + sVIEW_NAME + ".DATE_MODIFIED_UTC" + ControlChars.CrLf;
+									}
+									else
+									{
+										// 06/18/2011 Paul.  Allow a comma in a sort expression. 
+										r = new Regex(@"[^A-Za-z0-9_, ]");
+										sORDER_BY = " order by " + r.Replace(sORDER_BY, "") + ControlChars.CrLf;
+									}
+									//cmd.CommandText += sORDER_BY;
+									//Debug.WriteLine(Sql.ExpandParameters(cmd));// 03/20/2012 Paul.  Nolonger need to debug these SQL statements. 
+//#if DEBUG
+//									SplendidError.SystemWarning(new StackTrace(true).GetFrame(0), Sql.ExpandParameters(cmd));
+//#endif
+
+									using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+									{
+										((IDbDataAdapter)da).SelectCommand = cmd;
+										// 11/08/2009 Paul.  The table name is required in order to serialize the DataTable. 
+										dt = new DataTable(sTABLE_NAME);
+										if ( nTOP > 0 )
+										{
+											lTotalCount = -1;
+											// 04/21/2017 Paul.  We need to return the total when using nTOP. 
+											//string sSelectSQL = sSQL;
+											if ( cmd.CommandText.StartsWith(sSelectSQL) )
+											{
+												string sOriginalSQL = cmd.CommandText;
+												cmd.CommandText = "select count(*) " + ControlChars.CrLf + cmd.CommandText.Substring(sSelectSQL.Length);
+												lTotalCount = Sql.ToLong(cmd.ExecuteScalar());
+												cmd.CommandText = sOriginalSQL;
+											}
+											if ( nSKIP > 0 )
+											{
+												int nCurrentPageIndex = nSKIP / nTOP;
+												// 06/17/2103 Paul.  We cannot page a group result. 
+												Sql.PageResults(cmd, sTABLE_NAME, sORDER_BY, nCurrentPageIndex, nTOP);
+												// 05/19/2018 Paul.  Capture the last command for error tracking. 
+												sLastCommand = Sql.ExpandParameters(cmd);
+												da.Fill(dt);
+											}
+											else
+											{
+												cmd.CommandText += sORDER_BY;
+												using ( DataSet ds = new DataSet() )
+												{
+													ds.Tables.Add(dt);
+													// 05/19/2018 Paul.  Capture the last command for error tracking. 
+													sLastCommand = Sql.ExpandParameters(cmd);
+													da.Fill(ds, 0, nTOP, sTABLE_NAME);
+												}
+											}
+										}
+										else
+										{
+											cmd.CommandText += sORDER_BY;
+											// 05/19/2018 Paul.  Capture the last command for error tracking. 
+											sLastCommand = Sql.ExpandParameters(cmd);
+											da.Fill(dt);
+											// 04/21/2017 Paul.  We need to return the total when using nTOP. 
+											lTotalCount = dt.Rows.Count;
+										}
+										// 06/06/2017 Paul.  Make it easy to dump the SQL. 
+										// 10/26/2019 Paul.  Return the SQL to the React Client. 
+										string sDumbSQL = Sql.ExpandParameters(cmd);
+										sbDumpSQL.Append(sDumbSQL);
+#if DEBUG
+										//Debug.WriteLine(sDumbSQL);
+#endif
+										// 01/18/2010 Paul.  Apply ACL Field Security. 
+										// 02/01/2010 Paul.  System tables may not have a valid Module name, so Field Security will not apply. 
+										if ( SplendidInit.bEnableACLFieldSecurity && !Sql.IsEmptyString(sMODULE_NAME) )
+										{
+											bool bApplyACL = false;
+											bool bASSIGNED_USER_ID_Exists = dt.Columns.Contains("ASSIGNED_USER_ID");
+											foreach ( DataRow row in dt.Rows )
+											{
+												Guid gASSIGNED_USER_ID = Guid.Empty;
+												if ( bASSIGNED_USER_ID_Exists )
+													gASSIGNED_USER_ID = Sql.ToGuid(row["ASSIGNED_USER_ID"]);
+												foreach ( DataColumn col in dt.Columns )
+												{
+													Security.ACL_FIELD_ACCESS acl = Security.GetUserFieldSecurity(sMODULE_NAME, col.ColumnName, gASSIGNED_USER_ID);
+													if ( !acl.IsReadable() )
+													{
+														row[col.ColumnName] = DBNull.Value;
+														bApplyACL = true;
+													}
+												}
+											}
+											if ( bApplyACL )
+												dt.AcceptChanges();
+										}
+									}
+								}
+							}
+							else
+							{
+								// 08/02/2019 Paul.  We want to see the error in the React Client. 
+								string sMessage = sTABLE_NAME + " cannot be accessed.";
+								SplendidError.SystemError(new StackTrace(true).GetFrame(0), sMessage);
+								throw(new Exception(sMessage));
+							}
+						}
+					}
+				}
+			}
+			catch(Exception ex)
+			{
+				// 12/01/2012 Paul.  We need a more descriptive error message. 
+				//SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+				string sMessage = "GetActivities(" + sFILTER + ", " + sORDER_BY + ") " + ex.Message;
+				SplendidError.SystemMessage("Error", new StackTrace(true).GetFrame(0), sMessage);
+				// 05/19/2018 Paul.  Capture the last command for error tracking. 
+				if ( ex.Message.Contains("The server supports a maximum of 2100 parameters") )
+					SplendidError.SystemMessage("Error", new StackTrace(true).GetFrame(0), sLastCommand);
+				throw(new Exception(sMessage));
+			}
+			return dt;
+		}
+
 		// 08/17/2019 Paul.  Post version so that we can support large filter requests.  This is common with the UnifiedSearch. 
 		// 08/17/2019 Paul.  Must use stream and 'application/octet-stream'. 
 		[HttpPost("[action]")]
-		public Dictionary<string, object> PostModuleList([FromBody] IDictionary<string, object> dict)
+		public Dictionary<string, object> PostModuleList([FromBody] Dictionary<string, object> dict)
 		{
 			string ModuleName        = Sql.ToString (Request.Query["ModuleName"]);
 			int    nSKIP             = Sql.ToInteger(Request.Query["$skip"     ]);
@@ -1360,7 +2098,7 @@ namespace SplendidWebApi.Controllers
 
 		// 12/15/2019 Paul.  Export needs to follow the same parsing rules as PostModuleList. 
 		[HttpPost("[action]")]
-		public Dictionary<string, object> ExportModuleList([FromBody] IDictionary<string, object> dict)
+		public Dictionary<string, object> ExportModuleList([FromBody] Dictionary<string, object> dict)
 		{
 			string ModuleName        = Sql.ToString (Request.Query["ModuleName"]);
 			int    nSKIP             = Sql.ToInteger(Request.Query["$skip"     ]);
@@ -1703,6 +2441,476 @@ namespace SplendidWebApi.Controllers
 				}
 			}
 			
+			// 07/05/2023 Paul.  Add previously unmigrated code to Core. 
+			// 11/19/2019 Paul.  Only include for Opportunties if enabled. 
+			if ( sTABLE_NAME == "QUOTES" || sTABLE_NAME == "ORDERS" || sTABLE_NAME == "INVOICES" || (sTABLE_NAME == "OPPORTUNITIES" && Sql.ToString(Application["CONFIG.OpportunitiesMode"]) == "Revenue" ) )
+			{
+				SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					con.Open();
+					Dictionary<string, object> d       = dict["d"] as Dictionary<string, object>;
+					Dictionary<string, object> results = d["results"] as Dictionary<string, object>;
+					try
+					{
+						string sLINE_ITEMS_TABLE    = (sTABLE_NAME == "OPPORTUNITIES" ? "REVENUE_LINE_ITEMS" : sTABLE_NAME + "_LINE_ITEMS");
+						string sRELATED_MODULE_NAME = (sTABLE_NAME == "OPPORTUNITIES" ? "RevenueLineItems"   : ModuleName  + "LineItems"  );
+						string sRELATED_FIELD_NAME  = SplendidCRM.Crm.Modules.SingularTableName(sTABLE_NAME) + "_ID";
+						string sSQL = String.Empty;
+						sSQL = "select *                     " + ControlChars.CrLf
+						     + "  from vw" + sLINE_ITEMS_TABLE + ControlChars.CrLf
+						     + " where 1 = 1                 " + ControlChars.CrLf;
+						using ( IDbCommand cmd = con.CreateCommand() )
+						{
+							cmd.CommandText = sSQL;
+							Sql.AppendParameter(cmd, ID, sRELATED_FIELD_NAME, false);
+							cmd.CommandText += " order by POSITION" + ControlChars.CrLf;
+
+							sbDumpSQL.Append(";" + ControlChars.CrLf + Sql.ExpandParameters(cmd));
+							using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+							{
+								((IDbDataAdapter)da).SelectCommand = cmd;
+								using ( DataTable dtSubPanel = new DataTable() )
+								{
+									da.Fill(dtSubPanel);
+									// 04/01/2020 Paul.  Move json utils to RestUtil. 
+									results.Add("LineItems", RestUtil.RowsToDictionary(sBaseURI, sRELATED_MODULE_NAME, dtSubPanel, T10n));
+								}
+							}
+						}
+					}
+					catch(Exception ex)
+					{
+						SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+					}
+				}
+			}
+			// 10/09/2022 Paul.  Add Payments.SummaryView to React client. 
+			else if ( sTABLE_NAME == "PAYMENTS" )
+			{
+				SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					con.Open();
+					Dictionary<string, object> d       = dict["d"] as Dictionary<string, object>;
+					Dictionary<string, object> results = d["results"] as Dictionary<string, object>;
+					try
+					{
+						string sLINE_ITEMS_TABLE    = "PAYMENTS_INVOICES";
+						string sRELATED_MODULE_NAME = "Invoices";
+						string sRELATED_FIELD_NAME  = SplendidCRM.Crm.Modules.SingularTableName(sTABLE_NAME) + "_ID";
+						string sSQL = String.Empty;
+						sSQL = "select *                     " + ControlChars.CrLf
+						     + "  from vw" + sLINE_ITEMS_TABLE + ControlChars.CrLf
+						     + " where 1 = 1                 " + ControlChars.CrLf;
+						using ( IDbCommand cmd = con.CreateCommand() )
+						{
+							cmd.CommandText = sSQL;
+							Sql.AppendParameter(cmd, ID, sRELATED_FIELD_NAME, false);
+							cmd.CommandText += " order by DATE_MODIFIED" + ControlChars.CrLf;
+
+							sbDumpSQL.Append(";" + ControlChars.CrLf + Sql.ExpandParameters(cmd));
+							using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+							{
+								((IDbDataAdapter)da).SelectCommand = cmd;
+								using ( DataTable dtSubPanel = new DataTable() )
+								{
+									da.Fill(dtSubPanel);
+									results.Add("LineItems", RestUtil.RowsToDictionary(sBaseURI, sRELATED_MODULE_NAME, dtSubPanel, T10n));
+								}
+							}
+						}
+					}
+					catch(Exception ex)
+					{
+						SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+					}
+				}
+			}
+			// 11/19/2019 Paul.  Return all data in survey request. 
+			else if ( sTABLE_NAME == "SURVEYS" )
+			{
+				SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					con.Open();
+					Dictionary<string, object> d       = dict["d"] as Dictionary<string, object>;
+					Dictionary<string, object> results = d["results"] as Dictionary<string, object>;
+					try
+					{
+						string sSQL = String.Empty;
+						sSQL = "select *                     " + ControlChars.CrLf
+						     + "  from vwSURVEYS_SURVEY_PAGES" + ControlChars.CrLf
+						     + " where 1 = 1                 " + ControlChars.CrLf;
+						using ( IDbCommand cmdSurveyPages = con.CreateCommand() )
+						{
+							cmdSurveyPages.CommandText = sSQL;
+							Sql.AppendParameter(cmdSurveyPages, ID, "SURVEY_ID", false);
+							cmdSurveyPages.CommandText += " order by PAGE_NUMBER" + ControlChars.CrLf;
+							sbDumpSQL.Append(";" + ControlChars.CrLf + Sql.ExpandParameters(cmdSurveyPages));
+							using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+							{
+								((IDbDataAdapter)da).SelectCommand = cmdSurveyPages;
+								using ( DataTable dtSurveyPages = new DataTable() )
+								{
+									da.Fill(dtSurveyPages);
+									List<Dictionary<string, object>> lstSurveyPages = new List<Dictionary<string, object>>();
+									results.Add("SURVEY_PAGES", lstSurveyPages);
+									foreach ( DataRow rowPage in dtSurveyPages.Rows )
+									{
+										Guid     gSURVEY_PAGE_ID         = Sql.ToGuid    (rowPage["SURVEY_PAGE_ID"        ]);
+										string   sSURVEY_PAGE_NAME       = Sql.ToString  (rowPage["SURVEY_PAGE_NAME"      ]);
+										int      nPAGE_NUMBER            = Sql.ToInteger (rowPage["PAGE_NUMBER"           ]);
+										string   sQUESTION_RANDOMIZATION = Sql.ToString  (rowPage["QUESTION_RANDOMIZATION"]);
+										string   sDESCRIPTION            = Sql.ToString  (rowPage["DESCRIPTION"           ]);
+										DateTime dtDATE_ENTERED          = Sql.ToDateTime(rowPage["DATE_ENTERED"          ]);
+										DateTime dtDATE_MODIFIED         = Sql.ToDateTime(rowPage["DATE_MODIFIED"         ]);
+										DateTime dtDATE_MODIFIED_UTC     = Sql.ToDateTime(rowPage["DATE_MODIFIED_UTC"     ]);
+										Guid     gSURVEY_ID              = Sql.ToGuid    (rowPage["SURVEY_ID"             ]);
+										string   sSURVEY_NAME            = Sql.ToString  (rowPage["SURVEY_NAME"           ]);
+										Guid     gASSIGNED_USER_ID       = Sql.ToGuid    (rowPage["ASSIGNED_USER_ID"      ]);
+										string   sCREATED_BY             = Sql.ToString  (rowPage["CREATED_BY"            ]);
+										string   sMODIFIED_BY            = Sql.ToString  (rowPage["MODIFIED_BY"           ]);
+										Guid     gCREATED_BY_ID          = Sql.ToGuid    (rowPage["CREATED_BY_ID"         ]);
+										Guid     gMODIFIED_USER_ID       = Sql.ToGuid    (rowPage["MODIFIED_USER_ID"      ]);
+										string   sCREATED_BY_NAME        = Sql.ToString  (rowPage["CREATED_BY_NAME"       ]);
+										string   sMODIFIED_BY_NAME       = Sql.ToString  (rowPage["MODIFIED_BY_NAME"      ]);
+										Dictionary<string, object> dictSurveyPage = new Dictionary<string, object>();
+										// 11/20/2019 Paul.  Trying to match all the fields in vwSURVEYS_SURVEY_PAGES view. 
+										dictSurveyPage.Add("SURVEY_PAGE_ID"        , gSURVEY_PAGE_ID        );
+										dictSurveyPage.Add("ID"                    , gSURVEY_PAGE_ID        );
+										dictSurveyPage.Add("NAME"                  , sSURVEY_PAGE_NAME      );
+										dictSurveyPage.Add("SURVEY_PAGE_NAME"      , sSURVEY_PAGE_NAME      );
+										dictSurveyPage.Add("PAGE_NUMBER"           , nPAGE_NUMBER           );
+										dictSurveyPage.Add("QUESTION_RANDOMIZATION", sQUESTION_RANDOMIZATION);
+										dictSurveyPage.Add("DESCRIPTION"           , sDESCRIPTION           );
+										// 04/01/2020 Paul.  Move json utils to RestUtil. 
+										dictSurveyPage.Add("DATE_ENTERED"          , RestUtil.ToJsonDate(T10n.FromServerTime(dtDATE_ENTERED     )));
+										dictSurveyPage.Add("DATE_MODIFIED"         , RestUtil.ToJsonDate(T10n.FromServerTime(dtDATE_MODIFIED    )));
+										dictSurveyPage.Add("DATE_MODIFIED_UTC"     , RestUtil.ToJsonDate(T10n.FromServerTime(dtDATE_MODIFIED_UTC)));
+										dictSurveyPage.Add("SURVEY_ID"             , gSURVEY_ID             );
+										dictSurveyPage.Add("SURVEY_NAME"           , sSURVEY_NAME           );
+										dictSurveyPage.Add("ASSIGNED_USER_ID"      , gASSIGNED_USER_ID      );
+										dictSurveyPage.Add("CREATED_BY"            , sCREATED_BY            );
+										dictSurveyPage.Add("MODIFIED_BY"           , sMODIFIED_BY           );
+										dictSurveyPage.Add("CREATED_BY_ID"         , gCREATED_BY_ID         );
+										dictSurveyPage.Add("MODIFIED_USER_ID"      , gMODIFIED_USER_ID      );
+										dictSurveyPage.Add("CREATED_BY_NAME"       , sCREATED_BY_NAME       );
+										dictSurveyPage.Add("MODIFIED_BY_NAME"      , sMODIFIED_BY_NAME      );
+										lstSurveyPages.Add(dictSurveyPage);
+										
+										sSQL = "select *                       " + ControlChars.CrLf
+										     + "  from vwSURVEY_PAGES_QUESTIONS" + ControlChars.CrLf
+										     + " where 1 = 1                   " + ControlChars.CrLf;
+										using ( IDbCommand cmdQuestions = con.CreateCommand() )
+										{
+											cmdQuestions.CommandText = sSQL;
+											Sql.AppendParameter(cmdQuestions, gSURVEY_PAGE_ID, "SURVEY_PAGE_ID", false);
+											cmdQuestions.CommandText += " order by QUESTION_NUMBER asc" + ControlChars.CrLf;
+											((IDbDataAdapter)da).SelectCommand = cmdQuestions;
+											using ( DataTable dtQuestions = new DataTable() )
+											{
+												da.Fill(dtQuestions);
+												// 04/01/2020 Paul.  Move json utils to RestUtil. 
+												dictSurveyPage.Add("SURVEY_QUESTIONS", RestUtil.RowsToDictionary(sBaseURI, "SurveyQuestions", dtQuestions, T10n));
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					catch(Exception ex)
+					{
+						SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+					}
+				}
+			}
+			// 07/06/2021 Paul.  Return all data in survey page request. 
+			else if ( sTABLE_NAME == "SURVEY_PAGES" )
+			{
+				SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					con.Open();
+					Dictionary<string, object> d       = dict["d"] as Dictionary<string, object>;
+					Dictionary<string, object> results = d["results"] as Dictionary<string, object>;
+					try
+					{
+						string sSQL = String.Empty;
+						sSQL = "select *                       " + ControlChars.CrLf
+						     + "  from vwSURVEY_PAGES_QUESTIONS" + ControlChars.CrLf
+						     + " where 1 = 1                   " + ControlChars.CrLf;
+						using ( IDbCommand cmdQuestions = con.CreateCommand() )
+						{
+							cmdQuestions.CommandText = sSQL;
+							Sql.AppendParameter(cmdQuestions, ID, "SURVEY_PAGE_ID", false);
+							cmdQuestions.CommandText += " order by QUESTION_NUMBER asc" + ControlChars.CrLf;
+							using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+							{
+								((IDbDataAdapter)da).SelectCommand = cmdQuestions;
+								using ( DataTable dtQuestions = new DataTable() )
+								{
+									da.Fill(dtQuestions);
+									// 04/01/2020 Paul.  Move json utils to RestUtil. 
+									results.Add("SURVEY_QUESTIONS", RestUtil.RowsToDictionary(sBaseURI, "SurveyQuestions", dtQuestions, T10n));
+								}
+							}
+						}
+					}
+					catch(Exception ex)
+					{
+						SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+					}
+				}
+			}
+			// 04/30/2020 Paul.  Include Email Attachments. 
+			else if ( sTABLE_NAME == "EMAILS" )
+			{
+				SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					con.Open();
+					Dictionary<string, object> d       = dict["d"] as Dictionary<string, object>;
+					Dictionary<string, object> results = d["results"] as Dictionary<string, object>;
+					try
+					{
+						string sSQL = String.Empty;
+						sSQL = "select *                     " + ControlChars.CrLf
+						     + "  from vwEMAILS_Attachments  " + ControlChars.CrLf
+						     + " where EMAIL_ID = @EMAIL_ID  " + ControlChars.CrLf;
+						using ( IDbCommand cmd = con.CreateCommand() )
+						{
+							cmd.CommandText = sSQL;
+							Sql.AddParameter(cmd, "@EMAIL_ID", ID);
+							sbDumpSQL.Append(";" + ControlChars.CrLf + Sql.ExpandParameters(cmd));
+							using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+							{
+								((IDbDataAdapter)da).SelectCommand = cmd;
+								using ( DataTable dtSubPanel = new DataTable() )
+								{
+									da.Fill(dtSubPanel);
+									results.Add("ATTACHMENTS", RestUtil.RowsToDictionary(sBaseURI, "vwEMAILS_Attachments", dtSubPanel, T10n));
+								}
+							}
+						}
+					}
+					catch(Exception ex)
+					{
+						SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+					}
+				}
+			}
+			// 05/03/2020 Paul.  Include KBDocuments Attachments for the Email.EditView editor. 
+			else if ( sTABLE_NAME == "KBDOCUMENTS" )
+			{
+				SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					con.Open();
+					Dictionary<string, object> d       = dict["d"] as Dictionary<string, object>;
+					Dictionary<string, object> results = d["results"] as Dictionary<string, object>;
+					try
+					{
+						string sSQL = String.Empty;
+						sSQL = "select *                             " + ControlChars.CrLf
+						     + "  from vwKBDOCUMENTS_ATTACHMENTS     " + ControlChars.CrLf
+						     + " where KBDOCUMENT_ID = @KBDOCUMENT_ID" + ControlChars.CrLf;
+						using ( IDbCommand cmd = con.CreateCommand() )
+						{
+							cmd.CommandText = sSQL;
+							Sql.AddParameter(cmd, "@KBDOCUMENT_ID", ID);
+							sbDumpSQL.Append(";" + ControlChars.CrLf + Sql.ExpandParameters(cmd));
+							using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+							{
+								((IDbDataAdapter)da).SelectCommand = cmd;
+								using ( DataTable dtSubPanel = new DataTable() )
+								{
+									da.Fill(dtSubPanel);
+									results.Add("ATTACHMENTS", RestUtil.RowsToDictionary(sBaseURI, "vwKBDOCUMENTS_ATTACHMENTS", dtSubPanel, T10n));
+								}
+							}
+						}
+						sSQL = "select *                             " + ControlChars.CrLf
+						     + "  from vwKBDOCUMENTS_IMAGES          " + ControlChars.CrLf
+						     + " where KBDOCUMENT_ID = @KBDOCUMENT_ID" + ControlChars.CrLf;
+						using ( IDbCommand cmd = con.CreateCommand() )
+						{
+							cmd.CommandText = sSQL;
+							Sql.AddParameter(cmd, "@KBDOCUMENT_ID", ID);
+							sbDumpSQL.Append(";" + ControlChars.CrLf + Sql.ExpandParameters(cmd));
+							using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+							{
+								((IDbDataAdapter)da).SelectCommand = cmd;
+								using ( DataTable dtSubPanel = new DataTable() )
+								{
+									da.Fill(dtSubPanel);
+									results.Add("IMAGES", RestUtil.RowsToDictionary(sBaseURI, "vwKBDOCUMENTS_IMAGES", dtSubPanel, T10n));
+								}
+							}
+						}
+					}
+					catch(Exception ex)
+					{
+						SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+					}
+				}
+			}
+			// 05/08/2020 Paul.  Include Email Template Attachments for the Email.EditView editor. 
+			else if ( sTABLE_NAME == "EMAIL_TEMPLATES" )
+			{
+				SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					con.Open();
+					Dictionary<string, object> d       = dict["d"] as Dictionary<string, object>;
+					Dictionary<string, object> results = d["results"] as Dictionary<string, object>;
+					try
+					{
+						string sSQL = String.Empty;
+						sSQL = "select *                                     " + ControlChars.CrLf
+						     + "  from vwEMAIL_TEMPLATES_Attachments         " + ControlChars.CrLf
+						     + " where EMAIL_TEMPLATE_ID = @EMAIL_TEMPLATE_ID" + ControlChars.CrLf;
+						using ( IDbCommand cmd = con.CreateCommand() )
+						{
+							cmd.CommandText = sSQL;
+							Sql.AddParameter(cmd, "@EMAIL_TEMPLATE_ID", ID);
+							sbDumpSQL.Append(";" + ControlChars.CrLf + Sql.ExpandParameters(cmd));
+							using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+							{
+								((IDbDataAdapter)da).SelectCommand = cmd;
+								using ( DataTable dtSubPanel = new DataTable() )
+								{
+									da.Fill(dtSubPanel);
+									results.Add("ATTACHMENTS", RestUtil.RowsToDictionary(sBaseURI, "vwEMAIL_TEMPLATES_Attachments", dtSubPanel, T10n));
+								}
+							}
+						}
+					}
+					catch(Exception ex)
+					{
+						SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+					}
+				}
+			}
+			// 02/05/2023 Paul.  Include SMS Attachments. 
+			else if ( sTABLE_NAME == "SMS_MESSAGES" )
+			{
+				SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					con.Open();
+					Dictionary<string, object> d       = dict["d"] as Dictionary<string, object>;
+					Dictionary<string, object> results = d["results"] as Dictionary<string, object>;
+					try
+					{
+						string sSQL = String.Empty;
+						sSQL = "select *                         " + ControlChars.CrLf
+						     + "  from vwSMS_MESSAGES_Attachments" + ControlChars.CrLf
+						     + " where PARENT_ID = @PARENT_ID    " + ControlChars.CrLf;
+						using ( IDbCommand cmd = con.CreateCommand() )
+						{
+							cmd.CommandText = sSQL;
+							Sql.AddParameter(cmd, "@PARENT_ID", ID);
+							sbDumpSQL.Append(";" + ControlChars.CrLf + Sql.ExpandParameters(cmd));
+							using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+							{
+								((IDbDataAdapter)da).SelectCommand = cmd;
+								using ( DataTable dtSubPanel = new DataTable() )
+								{
+									da.Fill(dtSubPanel);
+									results.Add("ATTACHMENTS", RestUtil.RowsToDictionary(sBaseURI, "vwSMS_MESSAGES_Attachments", dtSubPanel, T10n));
+								}
+							}
+						}
+					}
+					catch(Exception ex)
+					{
+						SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+					}
+				}
+			}
+			// 06/04/2020 Paul.  Return Invitees list. 
+			else if ( sTABLE_NAME == "CALLS" )
+			{
+				SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					con.Open();
+					Dictionary<string, object> d       = dict["d"] as Dictionary<string, object>;
+					Dictionary<string, object> results = d["results"] as Dictionary<string, object>;
+					try
+					{
+						string sSQL = String.Empty;
+						sSQL = "select INVITEE_ID                            " + ControlChars.CrLf
+						     + "  from vwCALLS_Invitees                      " + ControlChars.CrLf
+						     + " where CALL_ID = @ID                         " + ControlChars.CrLf
+						     + " order by INVITEE_TYPE desc, INVITEE_NAME asc" + ControlChars.CrLf;
+						using ( IDbCommand cmd = con.CreateCommand() )
+						{
+							cmd.CommandText = sSQL;
+							Sql.AddParameter(cmd, "@ID", ID);
+							sbDumpSQL.Append(";" + ControlChars.CrLf + Sql.ExpandParameters(cmd));
+
+							using ( IDataReader rdr = cmd.ExecuteReader() )
+							{
+								StringBuilder sb = new StringBuilder();
+								while ( rdr.Read() )
+								{
+									if ( sb.Length > 0 )
+										sb.Append(",");
+									sb.Append(Sql.ToString(rdr["INVITEE_ID"]).ToLower());
+								}
+								results.Add("INVITEE_LIST", sb.ToString());
+							}
+						}
+					}
+					catch(Exception ex)
+					{
+						SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+					}
+				}
+			}
+			else if ( sTABLE_NAME == "MEETINGS" )
+			{
+				SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					con.Open();
+					Dictionary<string, object> d       = dict["d"] as Dictionary<string, object>;
+					Dictionary<string, object> results = d["results"] as Dictionary<string, object>;
+					try
+					{
+						string sSQL = String.Empty;
+						sSQL = "select INVITEE_ID                            " + ControlChars.CrLf
+						     + "  from vwMEETINGS_Invitees                   " + ControlChars.CrLf
+						     + " where MEETING_ID = @ID                      " + ControlChars.CrLf
+						     + " order by INVITEE_TYPE desc, INVITEE_NAME asc" + ControlChars.CrLf;
+						using ( IDbCommand cmd = con.CreateCommand() )
+						{
+							cmd.CommandText = sSQL;
+							Sql.AddParameter(cmd, "@ID", ID);
+							sbDumpSQL.Append(";" + ControlChars.CrLf + Sql.ExpandParameters(cmd));
+
+							using ( IDataReader rdr = cmd.ExecuteReader() )
+							{
+								StringBuilder sb = new StringBuilder();
+								while ( rdr.Read() )
+								{
+									if ( sb.Length > 0 )
+										sb.Append(",");
+									sb.Append(Sql.ToString(rdr["INVITEE_ID"]).ToLower());
+								}
+								results.Add("INVITEE_LIST", sb.ToString());
+							}
+						}
+					}
+					catch(Exception ex)
+					{
+						SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+					}
+				}
+			}
 			string sEXPAND = Sql.ToString (Request.Query["$expand"]);
 			if ( sEXPAND == "*" )
 			{
@@ -1893,6 +3101,693 @@ namespace SplendidWebApi.Controllers
 			return dict;
 		}
 
+		// 03/30/2016 Paul.  Convert requires special processing. 
+		[HttpGet("[action]")]
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> ConvertModuleItem([FromQuery] string ModuleName, [FromQuery] string SourceModuleName, [FromQuery] Guid SourceID)
+		{
+			if ( Sql.IsEmptyString(ModuleName) )
+				throw(new Exception("The module name must be specified."));
+			string sTABLE_NAME = Sql.ToString(Application["Modules." + ModuleName + ".TableName"]);
+			if ( Sql.IsEmptyString(sTABLE_NAME) )
+				throw(new Exception("Unknown module: " + ModuleName));
+			int nACLACCESS = Security.GetUserAccess(ModuleName, "view");
+			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + ModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
+			{
+				// 09/06/2017 Paul.  Include module name in error. 
+				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + Sql.ToString(ModuleName)));
+			}
+			
+			if ( Sql.IsEmptyString(SourceModuleName) )
+				throw(new Exception("The source module name must be specified."));
+			string sSOURCE_TABLE_NAME = Sql.ToString(Application["Modules." + SourceModuleName + ".TableName"]);
+			if ( Sql.IsEmptyString(sSOURCE_TABLE_NAME) )
+				throw(new Exception("Unknown module: " + SourceModuleName));
+			nACLACCESS = Security.GetUserAccess(SourceModuleName, "view");
+			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + SourceModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
+			{
+				// 09/06/2017 Paul.  Include module name in error. 
+				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + Sql.ToString(SourceModuleName)));
+			}
+			string sCONVERT_VIEW_NAME = String.Empty;
+			if ( SourceModuleName == "Prospects" && ModuleName == "Leads" )
+			{
+				sCONVERT_VIEW_NAME = "vwPROSPECTS_Convert";
+			}
+			else if ( SourceModuleName == "Leads" && ModuleName == "Contacts" )
+			{
+				sCONVERT_VIEW_NAME = "vwLEADS_Convert";
+			}
+			else if ( SourceModuleName == "Quotes" && ModuleName == "Opportunities" )
+			{
+				sCONVERT_VIEW_NAME = "vwQUOTES_ConvertToOpportunity";
+			}
+			else if ( SourceModuleName == "Quotes" && ModuleName == "Orders" )
+			{
+				sCONVERT_VIEW_NAME = "vwQUOTES_ConvertToOrder";
+			}
+			else if ( SourceModuleName == "Quotes" && ModuleName == "Invoices" )
+			{
+				sCONVERT_VIEW_NAME = "vwQUOTES_ConvertToInvoice";
+			}
+			else if ( SourceModuleName == "Orders" && ModuleName == "Invoices" )
+			{
+				sCONVERT_VIEW_NAME = "vwORDERS_ConvertToInvoice";
+			}
+			else if ( SourceModuleName == "Opportunities" && ModuleName == "Orders" )
+			{
+				sCONVERT_VIEW_NAME = "vwOPPORTUNITIES_ConvertToOrder";
+			}
+			if ( Sql.IsEmptyString(sCONVERT_VIEW_NAME) )
+			{
+				throw(new Exception("Conversion of " + SourceModuleName + " to " + ModuleName + " is not supported."));
+			}
+			
+			Guid[] arrITEMS = new Guid[1] { SourceID };
+			// 04/21/2017 Paul.  We need to return the total when using nTOP. 
+			long lTotalCount = 0;
+			// 05/21/2017 Paul.  HTML5 Dashboard requires aggregates. 
+			// 08/01/2019 Paul.  We need a ListView and EditView flags for the Rest Client. 
+			// 09/09/2019 Paul.  Send duplicate filter info. 
+			// 10/26/2019 Paul.  Return the SQL to the React Client. 
+			// 12/03/2019 Paul.  The React Client needs access to archive data. 
+			StringBuilder sbDumpSQL = new StringBuilder();
+			// 12/16/2019 Paul.  Moved GetTable to ~/_code/RestUtil.cs
+			DataTable dt = RestUtil.GetTable(sCONVERT_VIEW_NAME, 0, 1, String.Empty, String.Empty, String.Empty, null, arrITEMS, ref lTotalCount, null, AccessMode.edit, false, String.Empty, sbDumpSQL);
+			if ( dt == null || dt.Rows.Count == 0 )
+				throw(new Exception("Item not found: " + SourceModuleName + " " + SourceID.ToString()));
+			
+			string sBaseURI = Request.Scheme + "://" + Request.Host.Host + Request.Path.Value;
+			
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
+			Dictionary<string, object> dict = RestUtil.ToJson(sBaseURI, SourceModuleName, dt.Rows[0], T10n);
+			
+			if ( sSOURCE_TABLE_NAME == "QUOTES" || sSOURCE_TABLE_NAME == "ORDERS" || sSOURCE_TABLE_NAME == "INVOICES" || sSOURCE_TABLE_NAME == "OPPORTUNITIES" )
+			{
+				SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					con.Open();
+					Dictionary<string, object> d       = dict["d"] as Dictionary<string, object>;
+					Dictionary<string, object> results = d["results"] as Dictionary<string, object>;
+					try
+					{
+						string sLINE_ITEMS_TABLE    = (sSOURCE_TABLE_NAME == "OPPORTUNITIES" ? "REVENUE_LINE_ITEMS" : sSOURCE_TABLE_NAME + "_LINE_ITEMS");
+						string sRELATED_MODULE_NAME = (sSOURCE_TABLE_NAME == "OPPORTUNITIES" ? "RevenueLineItems"   : SourceModuleName  + "LineItems"  );
+						string sRELATED_FIELD_NAME  = SplendidCRM.Crm.Modules.SingularTableName(sSOURCE_TABLE_NAME) + "_ID";
+						string sSQL = String.Empty;
+						sSQL = "select *                     " + ControlChars.CrLf
+						     + "  from vw" + sLINE_ITEMS_TABLE + ControlChars.CrLf
+						     + " where 1 = 1                 " + ControlChars.CrLf;
+						using ( IDbCommand cmd = con.CreateCommand() )
+						{
+							cmd.CommandText = sSQL;
+							Sql.AppendParameter(cmd, SourceID, sRELATED_FIELD_NAME, false);
+							cmd.CommandText += " order by POSITION" + ControlChars.CrLf;
+							using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+							{
+								((IDbDataAdapter)da).SelectCommand = cmd;
+								using ( DataTable dtSubPanel = new DataTable() )
+								{
+									da.Fill(dtSubPanel);
+									// 04/01/2020 Paul.  Move json utils to RestUtil. 
+									results.Add("LineItems", RestUtil.RowsToDictionary(sBaseURI, sRELATED_MODULE_NAME, dtSubPanel, T10n));
+								}
+							}
+						}
+					}
+					catch(Exception ex)
+					{
+						SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+					}
+				}
+			}
+			string sEXPAND = Sql.ToString (Request.Query["$expand"]);
+			if ( sEXPAND == "*" )
+			{
+				SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					con.Open();
+					Dictionary<string, object> d       = dict["d"] as Dictionary<string, object>;
+					Dictionary<string, object> results = d["results"] as Dictionary<string, object>;
+					DataTable dtRelationships = SplendidCache.DetailViewRelationships(SourceModuleName + ".DetailView");
+					foreach ( DataRow row in dtRelationships.Rows )
+					{
+						try
+						{
+							string sRELATED_MODULE     = Sql.ToString(row["MODULE_NAME"]);
+							string sRELATED_TABLE      = Sql.ToString(Application["Modules." + sRELATED_MODULE + ".TableName"]);
+							string sRELATED_FIELD_NAME = SplendidCRM.Crm.Modules.SingularTableName(sRELATED_TABLE) + "_ID";
+							if ( !d.ContainsKey(sRELATED_MODULE) && Security.GetUserAccess(sRELATED_MODULE, "list") >= 0 )
+							{
+								using ( DataTable dtSYNC_TABLES = SplendidCache.RestTables(sRELATED_TABLE, true) )
+								{
+									string sSQL = String.Empty;
+									if ( dtSYNC_TABLES != null && dtSYNC_TABLES.Rows.Count > 0 )
+									{
+										UniqueStringCollection arrSearchFields = new UniqueStringCollection();
+										SplendidDynamic.SearchGridColumns(SourceModuleName + "." + sRELATED_MODULE, arrSearchFields);
+										
+										// 07/01/2018 Paul.  Add data privacy flag for the module. 
+										bool bIS_DATA_PRIVACY_MODULE = false;
+										if ( Config.enable_data_privacy() && dtSYNC_TABLES.Columns.Contains("IS_DATA_PRIVACY_MODULE") )
+											bIS_DATA_PRIVACY_MODULE = Sql.ToBoolean(dtSYNC_TABLES.Rows[0]["IS_DATA_PRIVACY_MODULE"]);
+										string sVIEW_NAME = "vw" + sSOURCE_TABLE_NAME + "_" + sRELATED_TABLE;
+										sSQL = "select " + Sql.FormatSelectFields(arrSearchFields)
+										     + (bIS_DATA_PRIVACY_MODULE ? Sql.AppendDataPrivacyField(sVIEW_NAME) : String.Empty)
+										     + "  from " + sVIEW_NAME + ControlChars.CrLf;
+										using ( IDbCommand cmd = con.CreateCommand() )
+										{
+											cmd.CommandText = sSQL;
+											Security.Filter(cmd, sRELATED_MODULE, "list");
+											Sql.AppendParameter(cmd, SourceID, sRELATED_FIELD_NAME);
+											using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+											{
+												((IDbDataAdapter)da).SelectCommand = cmd;
+												using ( DataTable dtSubPanel = new DataTable() )
+												{
+													da.Fill(dtSubPanel);
+													// 04/01/2020 Paul.  Move json utils to RestUtil. 
+													results.Add(sRELATED_MODULE, RestUtil.RowsToDictionary(sBaseURI, sRELATED_MODULE, dtSubPanel, T10n));
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+						catch(Exception ex)
+						{
+							SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+						}
+					}
+				}
+			}
+			
+			// 10/26/2019 Paul.  Return the SQL to the React Client. 
+			if ( Sql.ToBoolean(Application["CONFIG.show_sql"]) )
+			{
+				dict.Add("__sql", sbDumpSQL.ToString());
+			}
+			return dict;
+		}
+
+		[HttpGet("[action]")]
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> GetCalendar()
+		{
+			string   ModuleName        = "Activities";
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
+			DateTime dtDATE_START      = RestUtil.FromJsonDate(Request.Query["DATE_START"      ]);
+			DateTime dtDATE_END        = RestUtil.FromJsonDate(Request.Query["DATE_END"        ]);
+			Guid     gASSIGNED_USER_ID = Sql.ToGuid           (Request.Query["ASSIGNED_USER_ID"]);
+			int nACLACCESS = Security.GetUserAccess(ModuleName, "list");
+			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + ModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
+			{
+				// 09/06/2017 Paul.  Include module name in error. 
+				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + Sql.ToString(ModuleName)));
+			}
+			
+			StringBuilder sbDumpSQL = new StringBuilder();
+			DataTable dt = new DataTable() ;
+			SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+			using ( IDbConnection con = dbf.CreateConnection() )
+			{
+				string sSQL = String.Empty;
+				sSQL = "select *                " + ControlChars.CrLf
+				     + "  from vwACTIVITIES_List" + ControlChars.CrLf;
+				using ( IDbCommand cmd = con.CreateCommand() )
+				{
+					cmd.CommandText = sSQL;
+					Security.Filter(cmd, "Calls", "list");
+					if ( !Sql.IsEmptyGuid(gASSIGNED_USER_ID) )
+						Sql.AppendParameter(cmd, gASSIGNED_USER_ID, "ASSIGNED_USER_ID");
+					cmd.CommandText += "   and (   DATE_START >= @DATE_START and DATE_START < @DATE_END" + ControlChars.CrLf;
+					cmd.CommandText += "        or DATE_END   >= @DATE_START and DATE_END   < @DATE_END" + ControlChars.CrLf;
+					cmd.CommandText += "        or DATE_START <  @DATE_START and DATE_END   > @DATE_END" + ControlChars.CrLf;
+					cmd.CommandText += "       )                                                       " + ControlChars.CrLf;
+					cmd.CommandText += " order by DATE_START asc, NAME asc                             " + ControlChars.CrLf;
+					
+					Sql.AddParameter(cmd, "@DATE_START", T10n.ToServerTime(dtDATE_START));
+					Sql.AddParameter(cmd, "@DATE_END"  , T10n.ToServerTime(dtDATE_END  ));
+					
+					string sDumbSQL = Sql.ExpandParameters(cmd);
+					sbDumpSQL.Append(sDumbSQL);
+					using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+					{
+						((IDbDataAdapter)da).SelectCommand = cmd;
+						da.Fill(dt);
+						
+						foreach(DataRow row in dt.Rows)
+						{
+							switch ( Sql.ToString(row["ACTIVITY_TYPE"]) )
+							{
+								case "Calls"   :  row["STATUS"] = L10n.Term(".activity_dom.Call"   ) + " " + L10n.Term(".call_status_dom."   , row["STATUS"]);  break;
+								case "Meetings":  row["STATUS"] = L10n.Term(".activity_dom.Meeting") + " " + L10n.Term(".meeting_status_dom.", row["STATUS"]);  break;
+							}
+							if ( SplendidInit.bEnableACLFieldSecurity )
+							{
+								Guid gACTIVITY_ASSIGNED_USER_ID = Sql.ToGuid(row["ASSIGNED_USER_ID"]);
+								foreach ( DataColumn col in dt.Columns )
+								{
+									Security.ACL_FIELD_ACCESS acl = Security.GetUserFieldSecurity(ModuleName, col.ColumnName, gACTIVITY_ASSIGNED_USER_ID);
+									if ( !acl.IsReadable() )
+									{
+										row[col.ColumnName] = DBNull.Value;
+									}
+								}
+							}
+						}
+						dt.AcceptChanges();
+					}
+				}
+			}
+			
+			string sBaseURI = Request.Scheme + "://" + Request.Host.Host + Request.Path.Value.Replace("/GetCalendar", "/GetModuleItem");
+			// 04/01/2020 Paul.  Move json utils to RestUtil. 
+			Dictionary<string, object> dictResponse = RestUtil.ToJson(sBaseURI, ModuleName, dt, T10n);
+			dictResponse.Add("__total", dt.Rows.Count);
+			// 11/19/2019 Paul.  Return the SQL to the React Client. 
+			if ( Sql.ToBoolean(Application["CONFIG.show_sql"]) )
+			{
+				dictResponse.Add("__sql", sbDumpSQL.ToString());
+			}
+			return dictResponse;
+		}
+
+		[HttpGet("[action]")]
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> GetInviteesList([FromQuery] string FIRST_NAME, [FromQuery] string LAST_NAME, [FromQuery] string EMAIL, [FromQuery] string DATE_START, [FromQuery] string DATE_END)
+		{
+			int nCONTACTS_ACLACCESS = Security.GetUserAccess("Contacts", "list");
+			int nLEADS_ACLACCESS    = Security.GetUserAccess("Leads"   , "list");
+			if ( !(Sql.ToBoolean(Application["Modules.Contacts.RestEnabled"]) || Sql.ToBoolean(Application["Modules.Leads.RestEnabled"])) || (nCONTACTS_ACLACCESS < 0 && nLEADS_ACLACCESS < 0) )
+			{
+				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": Contacts and Leads"));
+			}
+			
+			DateTime dtDATE_START = RestUtil.FromJsonDate(DATE_START);
+			DateTime dtDATE_END   = RestUtil.FromJsonDate(DATE_END  );
+			string   sFIRST_NAME  = Sql.ToString         (FIRST_NAME);
+			string   sLAST_NAME   = Sql.ToString         (LAST_NAME );
+			string   sEMAIL       = Sql.ToString         (EMAIL     );
+			int      nSKIP        = Sql.ToInteger        (Request.Query["$skip"     ]);
+			int      nTOP         = Sql.ToInteger        (Request.Query["$top"      ]);
+			string   sORDER_BY    = Sql.ToString         (Request.Query["$orderby"  ]);
+			
+			StringBuilder sbDumpSQL = new StringBuilder();
+			DataTable dt = new DataTable();
+			SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+			using ( IDbConnection con = dbf.CreateConnection() )
+			{
+				using ( IDbCommand cmd = con.CreateCommand() )
+				{
+					bool bTeamFilter = Config.enable_team_management();
+					if ( bTeamFilter )
+					{
+						cmd.CommandText += "select ID          as ID                   " + ControlChars.CrLf;
+						cmd.CommandText += "     , N'Users'    as INVITEE_TYPE         " + ControlChars.CrLf;
+						cmd.CommandText += "     , FULL_NAME   as NAME                 " + ControlChars.CrLf;
+						cmd.CommandText += "     , FIRST_NAME  as FIRST_NAME           " + ControlChars.CrLf;
+						cmd.CommandText += "     , LAST_NAME   as LAST_NAME            " + ControlChars.CrLf;
+						cmd.CommandText += "     , EMAIL1      as EMAIL                " + ControlChars.CrLf;
+						cmd.CommandText += "     , PHONE_WORK  as PHONE                " + ControlChars.CrLf;
+						cmd.CommandText += "     , null        as ASSIGNED_USER_ID     " + ControlChars.CrLf;
+						cmd.CommandText += "  from vwTEAMS_ASSIGNED_TO_List            " + ControlChars.CrLf;
+						cmd.CommandText += " where MEMBERSHIP_USER_ID = @MEMBERSHIP_USER_ID" + ControlChars.CrLf;
+						Sql.AddParameter(cmd, "@MEMBERSHIP_USER_ID", Security.USER_ID);
+					}
+					else
+					{
+						cmd.CommandText += "select ID          as ID                   " + ControlChars.CrLf;
+						cmd.CommandText += "     , N'Users'    as INVITEE_TYPE         " + ControlChars.CrLf;
+						cmd.CommandText += "     , FULL_NAME   as NAME                 " + ControlChars.CrLf;
+						cmd.CommandText += "     , FIRST_NAME  as FIRST_NAME           " + ControlChars.CrLf;
+						cmd.CommandText += "     , LAST_NAME   as LAST_NAME            " + ControlChars.CrLf;
+						cmd.CommandText += "     , EMAIL1      as EMAIL                " + ControlChars.CrLf;
+						cmd.CommandText += "     , PHONE_WORK  as PHONE                " + ControlChars.CrLf;
+						cmd.CommandText += "     , null        as ASSIGNED_USER_ID     " + ControlChars.CrLf;
+						cmd.CommandText += "  from vwUSERS_ASSIGNED_TO_List            " + ControlChars.CrLf;
+						cmd.CommandText += " where 1 = 1                               " + ControlChars.CrLf;
+					}
+					Sql.AppendParameter(cmd, sFIRST_NAME,  25, Sql.SqlFilterMode.StartsWith, "FIRST_NAME"  );
+					Sql.AppendParameter(cmd, sLAST_NAME ,  25, Sql.SqlFilterMode.StartsWith, "LAST_NAME"   );
+					// 04/08/2008 Paul.  EMAIL1 and EMAIL2 are not available.  Just EMAIL. 
+					// 04/01/2012 Paul.  The query has been updated to use EMAIL1. 
+					Sql.AppendParameter(cmd, sEMAIL     , 100, Sql.SqlFilterMode.StartsWith, "EMAIL1"      );
+					
+					cmd.CommandText += "union all                                  " + ControlChars.CrLf;
+					cmd.CommandText += "select ID               as ID              " + ControlChars.CrLf;
+					cmd.CommandText += "     , N'Contacts'      as INVITEE_TYPE    " + ControlChars.CrLf;
+					cmd.CommandText += "     , NAME             as NAME            " + ControlChars.CrLf;
+					cmd.CommandText += "     , FIRST_NAME       as FIRST_NAME      " + ControlChars.CrLf;
+					cmd.CommandText += "     , LAST_NAME        as LAST_NAME       " + ControlChars.CrLf;
+					cmd.CommandText += "     , EMAIL1           as EMAIL           " + ControlChars.CrLf;
+					cmd.CommandText += "     , PHONE_WORK       as PHONE           " + ControlChars.CrLf;
+					cmd.CommandText += "     , ASSIGNED_USER_ID as ASSIGNED_USER_ID" + ControlChars.CrLf;
+					cmd.CommandText += "  from vwCONTACTS                          " + ControlChars.CrLf;
+					Security.Filter(cmd, "Contacts", "list");
+					cmd.CommandText += "   and EMAIL1 is not null                  " + ControlChars.CrLf;
+					Sql.AppendParameter(cmd, sFIRST_NAME,  25, Sql.SqlFilterMode.StartsWith, "FIRST_NAME"  );
+					Sql.AppendParameter(cmd, sLAST_NAME ,  25, Sql.SqlFilterMode.StartsWith, "LAST_NAME"   );
+					// 04/08/2008 Paul.  EMAIL1 and EMAIL2 are not available.  Just EMAIL. 
+					// 04/01/2012 Paul.  The query has been updated to use EMAIL1. 
+					Sql.AppendParameter(cmd, sEMAIL     , 100, Sql.SqlFilterMode.StartsWith, "EMAIL1"      );
+					
+					cmd.CommandText += "union all                                  " + ControlChars.CrLf;
+					cmd.CommandText += "select ID               as ID              " + ControlChars.CrLf;
+					cmd.CommandText += "     , N'Leads'         as INVITEE_TYPE    " + ControlChars.CrLf;
+					cmd.CommandText += "     , NAME             as NAME            " + ControlChars.CrLf;
+					cmd.CommandText += "     , FIRST_NAME       as FIRST_NAME      " + ControlChars.CrLf;
+					cmd.CommandText += "     , LAST_NAME        as LAST_NAME       " + ControlChars.CrLf;
+					cmd.CommandText += "     , EMAIL1           as EMAIL           " + ControlChars.CrLf;
+					cmd.CommandText += "     , PHONE_WORK       as PHONE           " + ControlChars.CrLf;
+					cmd.CommandText += "     , ASSIGNED_USER_ID as ASSIGNED_USER_ID" + ControlChars.CrLf;
+					cmd.CommandText += "  from vwLEADS                             " + ControlChars.CrLf;
+					Security.Filter(cmd, "Leads", "list");
+					cmd.CommandText += "   and EMAIL1 is not null" + ControlChars.CrLf;
+					Sql.AppendParameter(cmd, sFIRST_NAME,  25, Sql.SqlFilterMode.StartsWith, "FIRST_NAME"  );
+					Sql.AppendParameter(cmd, sLAST_NAME ,  25, Sql.SqlFilterMode.StartsWith, "LAST_NAME"   );
+					// 04/08/2008 Paul.  EMAIL1 and EMAIL2 are not available.  Just EMAIL. 
+					// 04/01/2012 Paul.  The query has been updated to use EMAIL1. 
+					Sql.AppendParameter(cmd, sEMAIL     , 100, Sql.SqlFilterMode.StartsWith, "EMAIL1"      );
+					
+					if ( Sql.IsEmptyString(sORDER_BY.Trim()) )
+					{
+						cmd.CommandText += " order by INVITEE_TYPE desc, LAST_NAME asc, FIRST_NAME asc" + ControlChars.CrLf;
+					}
+					else
+					{
+						// 06/18/2011 Paul.  Allow a comma in a sort expression. 
+						Regex r = new Regex(@"[^A-Za-z0-9_, ]");
+						cmd.CommandText += " order by " + r.Replace(sORDER_BY, "") + ControlChars.CrLf;
+					}
+					string sDumbSQL = Sql.ExpandParameters(cmd);
+					sbDumpSQL.Append(sDumbSQL);
+					using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+					{
+						((IDbDataAdapter)da).SelectCommand = cmd;
+						da.Fill(dt);
+					}
+				}
+			}
+			long lCount      = 0;
+			long lTotalCount = dt.Rows.Count;
+			List<Guid> arrINVITEE_LIST = new List<Guid>();
+			
+			//Dictionary<string, object> dictResponse = RestUtil.ToJson(sBaseURI, sModuleName, dt, T10n);
+			Dictionary<string, object> d = new Dictionary<string, object>();
+			Dictionary<string, object> results = new Dictionary<string, object>();
+			//results.Add("results", RestUtil.RowsToDictionary(sBaseURI, sModuleName, dt, T10n));
+			List<Dictionary<string, object>> objs = new List<Dictionary<string, object>>();
+			for ( int j = nSKIP; j < dt.Rows.Count && (nTOP <= 0 || lCount < nTOP); j++, lCount++ )
+			{
+				DataRow dr = dt.Rows[j];
+				Guid gASSIGNED_USER_ID = Sql.ToGuid(dr["ID"]);
+				// 06/06/2020 Paul.  Only users have activities. 
+				if ( Sql.ToString(dr["INVITEE_TYPE"]) == "Users" )
+				{
+					arrINVITEE_LIST.Add(gASSIGNED_USER_ID);
+				}
+				Dictionary<string, object> drow = new Dictionary<string, object>();
+				for ( int i = 0; i < dt.Columns.Count; i++ )
+				{
+					if ( dt.Columns[i].DataType.FullName == "System.DateTime" )
+					{
+						// 05/05/2013 Paul.  We need to convert the date to the user's timezone. 
+						drow.Add(dt.Columns[i].ColumnName, RestUtil.ToJsonDate(T10n.FromServerTime(dr[i])) );
+					}
+					else
+					{
+						drow.Add(dt.Columns[i].ColumnName, dr[i]);
+					}
+				}
+				drow.Add("Activities", new List<Dictionary<string, object>>());
+				objs.Add(drow);
+			}
+			if ( arrINVITEE_LIST.Count > 0 )
+			{
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					string sSQL = String.Empty;
+					sSQL = "select ID               " + ControlChars.CrLf
+					     + "     , ASSIGNED_USER_ID " + ControlChars.CrLf
+					     + "     , DATE_START       " + ControlChars.CrLf
+					     + "     , DATE_END         " + ControlChars.CrLf
+					     + "  from vwACTIVITIES_List" + ControlChars.CrLf
+					     + "  where 1 = 1           " + ControlChars.CrLf;
+					using ( IDbCommand cmd = con.CreateCommand() )
+					{
+						cmd.CommandText = sSQL;
+						Sql.AppendParameter(cmd, arrINVITEE_LIST.ToArray(), "ASSIGNED_USER_ID");
+						cmd.CommandText += "   and (   DATE_START >= @DATE_START and DATE_START < @DATE_END" + ControlChars.CrLf;
+						cmd.CommandText += "        or DATE_END   >= @DATE_START and DATE_END   < @DATE_END" + ControlChars.CrLf;
+						cmd.CommandText += "        or DATE_START <  @DATE_START and DATE_END   > @DATE_END" + ControlChars.CrLf;
+						cmd.CommandText += "       )                                                       " + ControlChars.CrLf;
+						cmd.CommandText += " order by ASSIGNED_USER_ID, DATE_START asc                     " + ControlChars.CrLf;
+						
+						Sql.AddParameter(cmd, "@DATE_START", T10n.ToServerTime(dtDATE_START));
+						Sql.AddParameter(cmd, "@DATE_END"  , T10n.ToServerTime(dtDATE_END  ));
+						
+						string sDumbSQL = Sql.ExpandParameters(cmd);
+						sbDumpSQL.Append(";" + ControlChars.CrLf + sDumbSQL);
+						using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+						{
+							((IDbDataAdapter)da).SelectCommand = cmd;
+							using ( DataTable dtActivities = new DataTable() )
+							{
+								da.Fill(dtActivities);
+								foreach ( DataRow rowActivity in dtActivities.Rows )
+								{
+									Guid     gACTIVITY_ASSIGNED_USER_ID = Sql.ToGuid    (rowActivity["ASSIGNED_USER_ID"]);
+									DateTime dtACTIVITY_DATE_START      = Sql.ToDateTime(rowActivity["DATE_START"      ]);
+									DateTime dtACTIVITY_DATE_END        = Sql.ToDateTime(rowActivity["DATE_END"        ]);
+									Dictionary<string, object> dictActivity = new Dictionary<string, object>();
+									dictActivity.Add("DATE_START", RestUtil.ToJsonDate(T10n.FromServerTime(dtACTIVITY_DATE_START)));
+									dictActivity.Add("DATE_END"  , RestUtil.ToJsonDate(T10n.FromServerTime(dtACTIVITY_DATE_END  )));
+									for ( int k = 0; k < objs.Count; k++ )
+									{
+										Dictionary<string, object> dictInvitee = objs[k];
+										if ( Sql.ToGuid(dictInvitee["ID"]) == gACTIVITY_ASSIGNED_USER_ID )
+										{
+											List<Dictionary<string, object>> lstActivities = dictInvitee["Activities"] as List<Dictionary<string, object>>;
+											lstActivities.Add(dictActivity);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			results.Add("results", objs);
+			d.Add("d"      , results    );
+			d.Add("__count", lCount     );
+			d.Add("__total", lTotalCount);
+			if ( Sql.ToBoolean(Application["CONFIG.show_sql"]) )
+			{
+				d.Add("__sql", sbDumpSQL.ToString());
+			}
+			return d;
+		}
+
+		[HttpGet("[action]")]
+		[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+		public Dictionary<string, object> GetInviteesActivities([FromQuery] string DATE_START, [FromQuery] string DATE_END, [FromQuery] string INVITEE_LIST)
+		{
+			int nACTIVITIES_ACLACCESS = Security.GetUserAccess("Activities", "list");
+			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules.Activities.RestEnabled"]) || nACTIVITIES_ACLACCESS < 0 )
+			{
+				// 09/06/2017 Paul.  Include module name in error. 
+				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": Activities"));
+			}
+			
+			DateTime dtDATE_START      = RestUtil.FromJsonDate(DATE_START  );
+			DateTime dtDATE_END        = RestUtil.FromJsonDate(DATE_END    );
+			string   sINVITEE_LIST     = Sql.ToString         (INVITEE_LIST);
+			string[] arrINVITEE_LIST   = { };
+			if ( !Sql.IsEmptyString(sINVITEE_LIST) )
+				arrINVITEE_LIST = sINVITEE_LIST.Split(',');
+			
+			SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+			StringBuilder sbDumpSQL = new StringBuilder();
+			DataTable dt = new DataTable() ;
+			// 06/04/2020 Paul.  An empty result set is valid, so don't generate an error if empty. 
+			if ( arrINVITEE_LIST.Length > 0 )
+			{
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					string sSQL = String.Empty;
+					sSQL = "select ID          " + ControlChars.CrLf
+					     + "     , FULL_NAME   " + ControlChars.CrLf
+					     + "     , INVITEE_TYPE" + ControlChars.CrLf
+					     + "  from vwINVITEES  " + ControlChars.CrLf
+					     + " where 1 = 1       " + ControlChars.CrLf;
+					using ( IDbCommand cmd = con.CreateCommand() )
+					{
+						cmd.CommandText = sSQL;
+						Sql.AppendParameter(cmd, arrINVITEE_LIST, "ID");
+						cmd.CommandText += " order by FULL_NAME" + ControlChars.CrLf;
+						
+						string sDumbSQL = Sql.ExpandParameters(cmd);
+						sbDumpSQL.Append(sDumbSQL);
+						using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+						{
+							((IDbDataAdapter)da).SelectCommand = cmd;
+							da.Fill(dt);
+						}
+					}
+				}
+			}
+			long lCount      = dt.Rows.Count;
+			long lTotalCount = dt.Rows.Count;
+
+			//Dictionary<string, object> dictResponse = RestUtil.ToJson(sBaseURI, sModuleName, dt, T10n);
+			Dictionary<string, object> d = new Dictionary<string, object>();
+			Dictionary<string, object> results = new Dictionary<string, object>();
+			//results.Add("results", RestUtil.RowsToDictionary(sBaseURI, sModuleName, dt, T10n));
+			List<Dictionary<string, object>> objs = new List<Dictionary<string, object>>();
+			for ( int j = 0; j < dt.Rows.Count; j++ )
+			{
+				DataRow dr = dt.Rows[j];
+				Guid gASSIGNED_USER_ID = Sql.ToGuid(dr["ID"]);
+				Dictionary<string, object> drow = new Dictionary<string, object>();
+				for ( int i = 0; i < dt.Columns.Count; i++ )
+				{
+					if ( dt.Columns[i].DataType.FullName == "System.DateTime" )
+					{
+						// 05/05/2013 Paul.  We need to convert the date to the user's timezone. 
+						drow.Add(dt.Columns[i].ColumnName, RestUtil.ToJsonDate(T10n.FromServerTime(dr[i])) );
+					}
+					else
+					{
+						drow.Add(dt.Columns[i].ColumnName, dr[i]);
+					}
+				}
+				drow.Add("Activities", new List<Dictionary<string, object>>());
+				objs.Add(drow);
+			}
+			if ( arrINVITEE_LIST.Length > 0 )
+			{
+				using ( IDbConnection con = dbf.CreateConnection() )
+				{
+					// 10/13/2020 Paul.  Convert to separate queries per user so that we can alter to be team specific. 
+					for ( int k = 0; k < objs.Count; k++ )
+					{
+						Dictionary<string, object> dictInvitee = objs[k];
+						Guid gASSIGNED_USER_ID = Sql.ToGuid(dictInvitee["ID"]);
+						List<Dictionary<string, object>> lstActivities = dictInvitee["Activities"] as List<Dictionary<string, object>>;
+						string sSQL = String.Empty;
+						sSQL = "select ID                                                      " + ControlChars.CrLf
+						     + "     , ASSIGNED_USER_ID                                        " + ControlChars.CrLf
+						     + "     , DATE_START                                              " + ControlChars.CrLf
+						     + "     , DATE_END                                                " + ControlChars.CrLf
+						     + "  from vwACTIVITIES_List                                       " + ControlChars.CrLf
+						     + " where ASSIGNED_USER_ID = @ASSIGNED_USER_ID                    " + ControlChars.CrLf
+						     + "   and (   DATE_START >= @DATE_START and DATE_START < @DATE_END" + ControlChars.CrLf
+						     + "        or DATE_END   >= @DATE_START and DATE_END   < @DATE_END" + ControlChars.CrLf
+						     + "        or DATE_START <  @DATE_START and DATE_END   > @DATE_END" + ControlChars.CrLf
+						     + "       )                                                       " + ControlChars.CrLf
+						     + " order by ASSIGNED_USER_ID, DATE_START asc                     " + ControlChars.CrLf;
+						using ( IDbCommand cmd = con.CreateCommand() )
+						{
+							cmd.CommandText = sSQL;
+							Sql.AddParameter(cmd, "@ASSIGNED_USER_ID", gASSIGNED_USER_ID              );
+							Sql.AddParameter(cmd, "@DATE_START"      , T10n.ToServerTime(dtDATE_START));
+							Sql.AddParameter(cmd, "@DATE_END"        , T10n.ToServerTime(dtDATE_END  ));
+							
+							string sDumbSQL = Sql.ExpandParameters(cmd);
+							sbDumpSQL.Append(";" + ControlChars.CrLf + sDumbSQL);
+							
+							using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+							{
+								((IDbDataAdapter)da).SelectCommand = cmd;
+								using ( DataTable dtActivities = new DataTable() )
+								{
+									da.Fill(dtActivities);
+									// 10/13/2020 Paul.  All activities are now specific to this user. 
+									foreach ( DataRow rowActivity in dtActivities.Rows )
+									{
+										DateTime dtACTIVITY_DATE_START      = Sql.ToDateTime(rowActivity["DATE_START"      ]);
+										DateTime dtACTIVITY_DATE_END        = Sql.ToDateTime(rowActivity["DATE_END"        ]);
+										Dictionary<string, object> dictActivity = new Dictionary<string, object>();
+										dictActivity.Add("DATE_START", RestUtil.ToJsonDate(T10n.FromServerTime(dtACTIVITY_DATE_START)));
+										dictActivity.Add("DATE_END"  , RestUtil.ToJsonDate(T10n.FromServerTime(dtACTIVITY_DATE_END  )));
+										lstActivities.Add(dictActivity);
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			results.Add("results", objs);
+			d.Add("d"      , results      );
+			d.Add("__count", dt.Rows.Count);
+			d.Add("__total", dt.Rows.Count);
+			if ( Sql.ToBoolean(Application["CONFIG.show_sql"]) )
+			{
+				d.Add("__sql", sbDumpSQL.ToString());
+			}
+			return d;
+		}
+
+		// 10/24/2020 Paul.  Activities dashlets need access to this procedure. 
+		[HttpPost("[action]")]
+		public void UpdateActivityStatus([FromBody] Dictionary<string, object> dict)
+		{
+			string sModuleName = "Activities";
+			int nACLACCESS = Security.GetUserAccess(sModuleName, "edit");
+			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + sModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
+			{
+				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + sModuleName));
+			}
+			
+			Guid   gID               = Guid.Empty;
+			Guid   gMODIFIED_USER_ID = Security.USER_ID;
+			Guid   gUSER_ID          = Security.USER_ID;
+			string sSTATUS           = String.Empty;
+			int    nRecordExists     = 0;
+
+			foreach ( string sColumnName in dict.Keys )
+			{
+				switch ( sColumnName )
+				{
+					case "STATUS"          :  sSTATUS           = Sql.ToString(dict[sColumnName]);  break;
+					case "ID"              :  gID               = Sql.ToGuid  (dict[sColumnName]);  break;
+				}
+			}
+
+			SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+			using ( IDbConnection con = dbf.CreateConnection() )
+			{
+				con.Open();
+				string sSQL;
+				sSQL = "select count(*)           " + ControlChars.CrLf
+				     + "  from vwACTIVITIES_MyList" + ControlChars.CrLf;
+				using ( IDbCommand cmd = con.CreateCommand() )
+				{
+					cmd.CommandText = sSQL;
+					// 11/25/2006 Paul.  At some point we will need to stop using vwACTIVITIES_MyList
+					// and apply security to Calls and Meetings separtely.  For now, just treat all activities as Calls. 
+					Security.Filter(cmd, "Calls", "list");
+					Sql.AppendParameter(cmd, gID             , "ID"              );
+					Sql.AppendParameter(cmd, Security.USER_ID, "ASSIGNED_USER_ID");
+					nRecordExists = Sql.ToInteger(cmd.ExecuteScalar());
+				}
+				
+				if ( nRecordExists > 0 )
+				{
+					SqlProcs.spACTIVITIES_UpdateStatus(gID, Security.USER_ID, sSTATUS);
+				}
+				else
+				{
+					throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
+				}
+			}
+		}
+		
 		// 06/17/2013 Paul.  Add support for GROUP BY. 
 		// 04/21/2017 Paul.  We need to return the total when using nTOP. 
 		// 05/21/2017 Paul.  HTML5 Dashboard requires aggregates. 
@@ -1920,7 +3815,6 @@ namespace SplendidWebApi.Controllers
 			int nACLACCESS = Security.GetUserAccess(ModuleName, "list");
 			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + ModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
 			{
-				L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 				// 09/06/2017 Paul.  Include module name in error. 
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + Sql.ToString(ModuleName)));
 			}
@@ -2211,7 +4105,6 @@ namespace SplendidWebApi.Controllers
 			int nACLACCESS = Security.GetUserAccess(sModuleName, "edit");
 			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + sModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
 			{
-				L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + sModuleName));
 			}
 			
@@ -2295,11 +4188,6 @@ namespace SplendidWebApi.Controllers
 			if ( Sql.IsEmptyString(ModuleName) )
 				throw(new Exception("The module name must be specified."));
 			// 08/22/2011 Paul.  Add admin control to REST API. 
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			DataTable dt = null;
 			if ( Mode == "import" )
 			{
@@ -2327,7 +4215,6 @@ namespace SplendidWebApi.Controllers
 			int nACLACCESS = Security.GetUserAccess(ModuleName, "edit");
 			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + ModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
 			{
-				L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + ModuleName));
 			}
 			Guid gCURRENCY_ID = Sql.ToGuid(Session["USER_SETTINGS/CURRENCY"]);
@@ -2551,22 +4438,18 @@ namespace SplendidWebApi.Controllers
 		#endregion
 
 		#region Update
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
 		// 03/13/2011 Paul.  Must use octet-stream instead of json, outherwise we get the following error. 
 		// Incoming message for operation 'CreateRecord' (contract 'AddressService' with namespace 'http://tempuri.org/') contains an unrecognized http body format value 'Json'. 
 		// The expected body format value is 'Raw'. This can be because a WebContentTypeMapper has not been configured on the binding. See the documentation of WebContentTypeMapper for more details.
 		//xhr.setRequestHeader('content-type', 'application/octet-stream');
 		// 02/07/2022 Paul.  Must follow old convention of returning value under d.  { d: value }
-		public Dictionary<string, object> UpdateModuleTable([FromBody] Dictionary<string, object> dict)
+		public Guid UpdateModuleTable([FromBody] Dictionary<string, object> dict)
 		{
 			string sTableName = Sql.ToString(Request.Query["TableName"]);
 			if ( Sql.IsEmptyString(sTableName) )
 				throw(new Exception("The table name must be specified."));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			// 08/22/2011 Paul.  Add admin control to REST API. 
 			string sMODULE_NAME = Sql.ToString(Application["Modules." + sTableName + ".ModuleName"]);
 			// 08/22/2011 Paul.  Not all tables will have a module name, such as relationship tables. 
@@ -2583,14 +4466,13 @@ namespace SplendidWebApi.Controllers
 			
 			// 04/01/2020 Paul.  Move UpdateTable to RestUtil. 
 			Guid gID = RestUtil.UpdateTable(sTableName, dict);
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", gID.ToString());
-			return d;
+			return gID;
 		}
 
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
 		// 02/07/2022 Paul.  Must follow old convention of returning value under d.  { d: value }
-		public Dictionary<string, object> UpdateModule([FromBody] Dictionary<string, object> dict)
+		public Guid UpdateModule([FromBody] Dictionary<string, object> dict)
 		{
 			string sModuleName = Sql.ToString(Request.Query["ModuleName"]);
 			if ( Sql.IsEmptyString(sModuleName) )
@@ -2635,9 +4517,7 @@ namespace SplendidWebApi.Controllers
 					SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
 				}
 			}
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", gID.ToString());
-			return d;
+			return gID;
 		}
 
 		// 04/01/2020 Paul.  Move UpdateTable to RestUtil. 
@@ -3052,16 +4932,23 @@ namespace SplendidWebApi.Controllers
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + Sql.ToString(RelatedModule)));
 			}
 			// 02/27/2021 Paul.  We need to correct for singulare table names, whereby the views and procedures are plural. 
-			if ( sTABLE_NAME == "PROJECT" )
-				sTABLE_NAME = "PROJECTS";
-			else if ( sTABLE_NAME == "PROJECT_TASK" )
-				sTABLE_NAME = "PROJECT_TASKS";
-			if ( sRELATED_TABLE == "PROJECT" )
-				sRELATED_TABLE = "PROJECTS";
-			else if ( sRELATED_TABLE == "PROJECT_TASK" )
-				sRELATED_TABLE = "PROJECT_TASKS";
+			// 05/08/2023 Paul.  Only change the relationship table, not the base table. 
+			//if ( sTABLE_NAME == "PROJECT" )
+			//	sTABLE_NAME = "PROJECTS";
+			//else if ( sTABLE_NAME == "PROJECT_TASK" )
+			//	sTABLE_NAME = "PROJECT_TASKS";
+			//if ( sRELATED_TABLE == "PROJECT" )
+			//	sRELATED_TABLE = "PROJECTS";
+			//else if ( sRELATED_TABLE == "PROJECT_TASK" )
+			//	sRELATED_TABLE = "PROJECT_TASKS";
 			
 			string sRELATIONSHIP_TABLE = sTABLE_NAME + "_" + sRELATED_TABLE;
+			// 05/08/2023 Paul.  Only change the relationship table, not the base table. 
+			if ( sTABLE_NAME == "PROJECT" || sTABLE_NAME == "PROJECT_TASK" )
+				sRELATIONSHIP_TABLE = sTABLE_NAME + "S_" + sRELATED_TABLE;
+			if ( sRELATED_TABLE == "PROJECT" || sRELATED_TABLE == "PROJECT_TASK" )
+				sRELATIONSHIP_TABLE = sTABLE_NAME + "_" + sRELATED_TABLE + "S";
+
 			string sMODULE_FIELD_NAME  = SplendidCRM.Crm.Modules.SingularTableName(sTABLE_NAME   ) + "_ID";
 			string sRELATED_FIELD_NAME = SplendidCRM.Crm.Modules.SingularTableName(sRELATED_TABLE) + "_ID";
 			// 11/24/2012 Paul.  In the special cases of Accounts Related and Contacts Reports To, we need to correct the field name. 
@@ -3361,7 +5248,24 @@ namespace SplendidWebApi.Controllers
 				}
 			}
 
+			// 05/05/2023 Paul.  We need to correct for singulare table names, whereby the views and procedures are plural. 
+			// 05/08/2023 Paul.  Only change the relationship table, not the base table. 
+			//if ( sTABLE_NAME == "PROJECT" )
+			//	sTABLE_NAME = "PROJECTS";
+			//else if ( sTABLE_NAME == "PROJECT_TASK" )
+			//	sTABLE_NAME = "PROJECT_TASKS";
+			//if ( sRELATED_TABLE == "PROJECT" )
+			//	sRELATED_TABLE = "PROJECTS";
+			//else if ( sRELATED_TABLE == "PROJECT_TASK" )
+			//	sRELATED_TABLE = "PROJECT_TASKS";
+			
 			string sRELATIONSHIP_TABLE = sTABLE_NAME + "_" + sRELATED_TABLE;
+			// 05/08/2023 Paul.  Only change the relationship table, not the base table. 
+			if ( sTABLE_NAME == "PROJECT" || sTABLE_NAME == "PROJECT_TASK" )
+				sRELATIONSHIP_TABLE = sTABLE_NAME + "S_" + sRELATED_TABLE;
+			if ( sRELATED_TABLE == "PROJECT" || sRELATED_TABLE == "PROJECT_TASK" )
+				sRELATIONSHIP_TABLE = sTABLE_NAME + "_" + sRELATED_TABLE + "S";
+
 			string sMODULE_FIELD_NAME  = SplendidCRM.Crm.Modules.SingularTableName(sTABLE_NAME   ) + "_ID";
 			string sRELATED_FIELD_NAME = SplendidCRM.Crm.Modules.SingularTableName(sRELATED_TABLE) + "_ID";
 			// 11/24/2012 Paul.  In the special cases of Accounts Related and Contacts Reports To, we need to correct the field name. 
@@ -3408,6 +5312,11 @@ namespace SplendidWebApi.Controllers
 				sRELATIONSHIP_TABLE = "AZURE_APP_SERVICE_LEVELS";
 				sMODULE_FIELD_NAME  = "SERVICE_LEVEL_ID";
 				sRELATED_FIELD_NAME = "APP_PRICE_ID";
+			}
+			// 01/18/2022 Paul.  Correct for poorly formed legacy procedure. 
+			else if ( sRELATIONSHIP_TABLE == "CAMPAIGNS_PROSPECT_LISTS" )
+			{
+				sRELATIONSHIP_TABLE = "PROSPECT_LIST_CAMPAIGNS";
 			}
 			
 			// 06/04/2011 Paul.  For relationships, we first need to check the access rights of the parent record. 
@@ -3830,10 +5739,16 @@ namespace SplendidWebApi.Controllers
 			}
 		}
 
+		public class UpdateEmailReadStatusParameters
+		{
+			public Guid     ID            { get; set; }
+		}
+
 		// 11/05/2020 Paul.  Although we could be more flexible and allow any email status, we really only need to set to read if unread. 
 		[HttpPost("[action]")]
-		public void UpdateEmailReadStatus([FromBody] Guid ID)
+		public void UpdateEmailReadStatus([FromBody] UpdateEmailReadStatusParameters input)
 		{
+			Guid ID = Sql.ToGuid(input.ID);
 			string ModuleName = "Emails";
 			if ( Sql.IsEmptyString(ModuleName) )
 				throw(new Exception("The module name must be specified."));
@@ -3847,8 +5762,12 @@ namespace SplendidWebApi.Controllers
 			using ( IDbConnection con = dbf.CreateConnection() )
 			{
 				string sSQL ;
-				sSQL = "select NAME        " + ControlChars.CrLf
-				    + "  from vwEMAILS_Edit" + ControlChars.CrLf;
+				// 06/18/2023 Paul.  Was not including TYPE or STATUS. 
+				sSQL = "select ID           " + ControlChars.CrLf
+				     + "     , NAME         " + ControlChars.CrLf
+				     + "     , TYPE         " + ControlChars.CrLf
+				     + "     , STATUS       " + ControlChars.CrLf
+				     + "  from vwEMAILS_Edit" + ControlChars.CrLf;
 				using ( IDbCommand cmd = con.CreateCommand() )
 				{
 					cmd.CommandText = sSQL;
@@ -3878,9 +5797,63 @@ namespace SplendidWebApi.Controllers
 			}
 		}
 
-		// 01/24/2021 Paul.  Allow SendEmail from React Client. 
+		public class SendActivityInvitesParameters
+		{
+			public string ModuleName { get; set; }
+			public Guid   ID         { get; set; }
+		}
+
+		// 01/23/2021 Paul.  Add send invites button. 
 		[HttpPost("[action]")]
-		public Dictionary<string, object> SendEmail([FromQuery] Guid ID)
+		public void SendActivityInvites([FromBody] SendActivityInvitesParameters input)
+		{
+			string ModuleName = input.ModuleName;
+			Guid  ID          = input.ID        ;
+			if ( Sql.IsEmptyString(ModuleName) )
+				throw(new Exception("The module name must be specified."));
+			int nACLACCESS = Security.GetUserAccess(ModuleName, "edit");
+			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + ModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
+			{
+				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + Sql.ToString(ModuleName)));
+			}
+			string sTABLE_NAME = Sql.ToString(Application["Modules." + ModuleName + ".TableName"]);
+			if ( Sql.IsEmptyString(sTABLE_NAME) )
+				throw(new Exception("Unknown module: " + ModuleName));
+			
+			// 01/23/2021 Paul.  Get the time first to ensure proper access. 
+			SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+			using ( IDbConnection con = dbf.CreateConnection() )
+			{
+				string sSQL ;
+				sSQL = "select ID" + ControlChars.CrLf
+				    + "  from vw" + sTABLE_NAME + ControlChars.CrLf;
+				using ( IDbCommand cmd = con.CreateCommand() )
+				{
+					cmd.CommandText = sSQL;
+					Security.Filter(cmd, ModuleName, "edit");
+					Sql.AppendParameter(cmd, ID, "ID", false);
+					con.Open();
+
+					using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+					{
+						((IDbDataAdapter)da).SelectCommand = cmd;
+						using ( DataTable dt = new DataTable() )
+						{
+							da.Fill(dt);
+							if ( dt.Rows.Count > 0 )
+							{
+								EmailUtils.SendActivityInvites(ID);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// 01/24/2021 Paul.  Allow SendEmail from React Client. 
+		[DotNetLegacyData]
+		[HttpPost("[action]")]
+		public string SendEmail([FromQuery] Guid ID)
 		{
 			string ModuleName = "Emails";
 			if ( Sql.IsEmptyString(ModuleName) )
@@ -3940,7 +5913,9 @@ namespace SplendidWebApi.Controllers
 								try
 								{
 									sSTATUS = "draft";
-									SqlProcs.spEMAILS_UpdateStatus(ID, sSTATUS);
+									// 06/18/2023 Paul.  Don't update unless necessary. 
+									if ( Sql.ToString(dt.Rows[0]["STATUS"]) != sSTATUS )
+										SqlProcs.spEMAILS_UpdateStatus(ID, sSTATUS);
 									// 07/10/2010 Paul.  The Offline Client cannot send emails.  Just mark as draft & out. 
 									// It should get sent when it is copied to the server. 
 									// 12/20/2007 Paul.  SendEmail was moved to EmailUtils.
@@ -3980,9 +5955,106 @@ namespace SplendidWebApi.Controllers
 					}
 				}
 			}
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", sSTATUS);
-			return d;
+			return sSTATUS;
+		}
+
+		public class SendTextParameters
+		{
+			public Guid     ID            { get; set; }
+		}
+
+		// 06/18/2023 Paul.  Allow SendText from React Client. 
+		[DotNetLegacyData]
+		[HttpPost("[action]")]
+		public string SendText([FromBody] SendTextParameters input)
+		{
+			Guid ID = Sql.ToGuid(input.ID);
+			string ModuleName = "SmsMessages";
+			if ( Sql.IsEmptyString(ModuleName) )
+				throw(new Exception("The module name must be specified."));
+			int nACLACCESS = Security.GetUserAccess(ModuleName, "edit");
+			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + ModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
+			{
+				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + Sql.ToString(ModuleName)));
+			}
+			string sTABLE_NAME = Sql.ToString(Application["Modules." + ModuleName + ".TableName"]);
+			if ( Sql.IsEmptyString(sTABLE_NAME) )
+				throw(new Exception("Unknown module: " + ModuleName));
+			if ( Sql.IsEmptyGuid(ID) )
+				throw(new Exception("Unspecified ID: " + ID));
+			
+			// 01/24/2021 Paul.  Return status so that we can take action on error. 
+			string sSTATUS = "draft";
+			SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+			using ( IDbConnection con = dbf.CreateConnection() )
+			{
+				string sSQL ;
+				sSQL = "select STATUS" + ControlChars.CrLf
+				    + "  from vw" + sTABLE_NAME + ControlChars.CrLf;
+				using ( IDbCommand cmd = con.CreateCommand() )
+				{
+					cmd.CommandText = sSQL;
+					Security.Filter(cmd, ModuleName, "edit");
+					Sql.AppendParameter(cmd, ID, "ID", false);
+					con.Open();
+
+					using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+					{
+						((IDbDataAdapter)da).SelectCommand = cmd;
+
+						DataTable dt = new DataTable();
+						da.Fill(dt);
+						if ( dt.Rows.Count > 0 )
+						{
+							// 06/18/2023 Paul.  Clear the send error so thatwe can send again. 
+							sSTATUS = Sql.ToString(dt.Rows[0]["STATUS"]);
+							if ( sSTATUS == "send_error" )
+								SqlProcs.spSMS_MESSAGES_UpdateStatus(ID, "draft", String.Empty);
+
+							dt = new DataTable();
+							cmd.Parameters.Clear();
+							sSQL = "select TYPE                      " + ControlChars.CrLf
+							     + "     , STATUS                    " + ControlChars.CrLf
+							     + "  from vwSMS_MESSAGES_ReadyToSend" + ControlChars.CrLf
+							     + " where ID = @ID                  " + ControlChars.CrLf;
+							cmd.CommandText = sSQL;
+							Sql.AddParameter(cmd, "@ID", ID);
+							da.Fill(dt);
+							if ( dt.Rows.Count > 0 )
+							{
+								try
+								{
+									sSTATUS = "draft";
+									// 06/18/2023 Paul.  Don't update unless necessary. 
+									if ( Sql.ToString(dt.Rows[0]["STATUS"]) != sSTATUS )
+										SqlProcs.spSMS_MESSAGES_UpdateStatus(ID, sSTATUS, String.Empty);
+									string sMESSAGE_SID = TwilioManager.SendText(Application, Modules, EmailUtils, ID);
+									if ( !Sql.IsEmptyString(sMESSAGE_SID) )
+									{
+										sSTATUS = "sent";
+										SqlProcs.spSMS_MESSAGES_UpdateStatus(ID, sSTATUS, sMESSAGE_SID);
+									}
+								}
+								catch(Exception ex)
+								{
+									SqlProcs.spSMS_MESSAGES_UpdateStatus(ID, "send_error", String.Empty);
+									SplendidError.SystemError(new StackTrace(true).GetFrame(0), Utils.ExpandException(ex));
+									sSTATUS = ex.Message;
+								}
+							}
+							else
+							{
+								sSTATUS = "Not ready to send";
+							}
+						}
+						else
+						{
+							sSTATUS = L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + ID.ToString();
+						}
+					}
+				}
+			}
+			return sSTATUS;
 		}
 
 		// 07/05/2021 Paul.  We need a way to call a generic procedure.  Security is still managed through SYSTEM_REST_TABLES. 
@@ -3991,11 +6063,6 @@ namespace SplendidWebApi.Controllers
 		{
 			try
 			{
-				if ( !Security.IsAuthenticated() )
-				{
-					throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-				}
-				
 				string sProcedureName = Sql.ToString(Request.Query["ProcedureName"]);
 				DataTable dtUPDATE = new DataTable(sProcedureName);
 				foreach ( string sColumnName in dict.Keys )
@@ -4163,24 +6230,23 @@ namespace SplendidWebApi.Controllers
 		[HttpPost("[action]")]
 		public void ChangePassword([FromBody] ChangePasswordParameters input)
 		{
+			Guid     USER_ID      = Sql.ToGuid  (input.USER_ID     );
+			string   OLD_PASSWORD = Sql.ToString(input.OLD_PASSWORD);
+			string   NEW_PASSWORD = Sql.ToString(input.NEW_PASSWORD);
 			try
 			{
-				if ( !Security.IsAuthenticated() )
-				{
-					throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-				}
 				// 01/10/2022 Paul.  Only an admin can change the password for another user. 
-				else if ( Sql.IsEmptyGuid(input.USER_ID) )
+				if ( Sql.IsEmptyGuid(USER_ID) )
 				{
 					throw(new Exception(L10n.Term(".ERR_MISSING_REQUIRED_FIELDS")));
 				}
-				else if ( Sql.IsEmptyString(input.NEW_PASSWORD) )
+				else if ( Sql.IsEmptyString(NEW_PASSWORD) )
 				{
 					throw(new Exception(L10n.Term(".ERR_MISSING_REQUIRED_FIELDS")));
 				}
 				else if ( !(Security.AdminUserAccess("Users", "edit") >= 0) )
 				{
-					if ( input.USER_ID != Security.USER_ID )
+					if ( USER_ID != Security.USER_ID )
 					{
 						throw(new Exception(L10n.Term(".LBL_INSUFFICIENT_ACCESS")));
 					}
@@ -4200,7 +6266,7 @@ namespace SplendidWebApi.Controllers
 					using ( IDbCommand cmd = con.CreateCommand() )
 					{
 						cmd.CommandText = sSQL;
-						Sql.AddParameter(cmd, "@ID", input.USER_ID);
+						Sql.AddParameter(cmd, "@ID", USER_ID);
 						// 01/10/2022 Paul.  Validate the USER_ID on the fist pass. 
 						using ( IDataReader rdr = cmd.ExecuteReader(CommandBehavior.SingleRow) )
 						{
@@ -4216,9 +6282,9 @@ namespace SplendidWebApi.Controllers
 						if ( !(Security.AdminUserAccess("Users", "view") >= 0) )
 						{
 							// 02/13/2009 Paul.  We need to allow a user with a blank password to change his password. 
-							if ( !Sql.IsEmptyString(input.OLD_PASSWORD) )
+							if ( !Sql.IsEmptyString(OLD_PASSWORD) )
 							{
-								string sUSER_HASH = Security.HashPassword(input.OLD_PASSWORD);
+								string sUSER_HASH = Security.HashPassword(OLD_PASSWORD);
 								cmd.CommandText += "   and USER_HASH = @USER_HASH" + ControlChars.CrLf;
 								Sql.AddParameter(cmd, "@USER_HASH", sUSER_HASH);
 							}
@@ -4263,9 +6329,9 @@ namespace SplendidWebApi.Controllers
 					ctlNEW_PASSWORD_STRENGTH.MessageSatisfied                    = L10n.Term("Users.LBL_PASSWORD_SATISFIED"           );
 
 					string sPASSWORD_REQUIREMENTS = String.Empty;
-					if ( ctlNEW_PASSWORD_STRENGTH.IsValid(input.NEW_PASSWORD, ref sPASSWORD_REQUIREMENTS) )
+					if ( ctlNEW_PASSWORD_STRENGTH.IsValid(NEW_PASSWORD, ref sPASSWORD_REQUIREMENTS) )
 					{
-						string sUSER_HASH = Security.HashPassword(input.NEW_PASSWORD);
+						string sUSER_HASH = Security.HashPassword(NEW_PASSWORD);
 						using ( IDbConnection con = dbf.CreateConnection() )
 						{
 							con.Open();
@@ -4278,12 +6344,12 @@ namespace SplendidWebApi.Controllers
 							using ( IDbCommand cmd = con.CreateCommand() )
 							{
 								cmd.CommandText = sSQL;
-								Sql.AddParameter(cmd, "@USER_ID"  , input.USER_ID);
+								Sql.AddParameter(cmd, "@USER_ID"  , USER_ID);
 								Sql.AddParameter(cmd, "@USER_HASH", sUSER_HASH);
 								int nLastPassword = Sql.ToInteger(cmd.ExecuteScalar());
 								if ( nLastPassword == 0 )
 								{
-									SqlProcs.spUSERS_PasswordUpdate(input.USER_ID, sUSER_HASH);
+									SqlProcs.spUSERS_PasswordUpdate(USER_ID, sUSER_HASH);
 									// 02/23/2011 Paul.  Clear any existing failures so that the user can login. 
 									// This is how an administrator will reset the failure count. 
 									SplendidInit.LoginTracking(sUSER_NAME, true);
@@ -4304,23 +6370,192 @@ namespace SplendidWebApi.Controllers
 			catch(Exception ex)
 			{
 				// 01/10/2022 Paul.  Log all change password failures. 
-				SplendidError.SystemError(new StackTrace(true).GetFrame(0), "Change Password for " + input.USER_ID.ToString() + " failed.  " + ex.Message);
+				SplendidError.SystemError(new StackTrace(true).GetFrame(0), "Change Password for " + USER_ID.ToString() + " failed.  " + ex.Message);
 				throw;
 			}
 		}
 		#endregion
 
+		public class FavoritesParameters
+		{
+			public string MODULE { get; set; }
+			public Guid   ID     { get; set; }
+		}
+
+		#region Favorites and Subscription. 
+		[DotNetLegacyData]
+		[HttpPost("[action]")]
+		public bool AddToFavorites([FromBody] FavoritesParameters input)
+		{
+			string MODULE = input.MODULE;
+			Guid   ID     = input.ID    ;
+			bool bSucceeded = false;
+			//try
+			{
+				// 03/31/2012 Paul.  Use the standard filter to verify that the user can view the record. 
+				if ( !Sql.IsEmptyString(MODULE) && !Sql.IsEmptyGuid(ID) && Security.GetUserAccess(MODULE, "view") >= 0 )
+				{
+					string sTABLE_NAME = SplendidCRM.Crm.Modules.SingularTableName(MODULE);
+					SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+					using ( IDbConnection con = dbf.CreateConnection() )
+					{
+						string sSQL ;
+						sSQL = "select NAME           " + ControlChars.CrLf
+						    + "  from vw" + sTABLE_NAME + ControlChars.CrLf;
+						using ( IDbCommand cmd = con.CreateCommand() )
+						{
+							cmd.CommandText = sSQL;
+							Security.Filter(cmd, MODULE, "view");
+							Sql.AppendParameter(cmd, ID, "ID", false);
+							con.Open();
+
+							using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+							{
+								((IDbDataAdapter)da).SelectCommand = cmd;
+								using ( DataTable dt = new DataTable() )
+								{
+									da.Fill(dt);
+									if ( dt.Rows.Count > 0 )
+									{
+										DataRow rdr = dt.Rows[0];
+										string sNAME = Sql.ToString(rdr["NAME"]);
+										SqlProcs.spSUGARFAVORITES_Update(Security.USER_ID, MODULE, ID, sNAME);
+										SplendidCache.ClearFavorites();
+										bSucceeded = true;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			//catch
+			{
+				// 02/04/2007 Paul.  Don't catch the exception.  
+				// It is a web service, so the exception will be handled properly by the AJAX framework. 
+			}
+			return bSucceeded;
+		}
+
+		[DotNetLegacyData]
+		[HttpPost("[action]")]
+		public bool RemoveFromFavorites([FromBody] FavoritesParameters input)
+		{
+			string MODULE = input.MODULE;
+			Guid   ID     = input.ID    ;
+			bool bSucceeded = false;
+			//try
+			{
+				// 03/31/2012 Paul.  No need to validate on remove as the item would not be in the list if the user did not have access to it. 
+				if ( !Sql.IsEmptyString(MODULE) && !Sql.IsEmptyGuid(ID) && Security.GetUserAccess(MODULE, "view") >= 0 )
+				{
+					SqlProcs.spSUGARFAVORITES_Delete(Security.USER_ID, ID);
+					SplendidCache.ClearFavorites();
+					bSucceeded = true;
+				}
+			}
+			//catch
+			{
+				// 02/04/2007 Paul.  Don't catch the exception.  
+				// It is a web service, so the exception will be handled properly by the AJAX framework. 
+			}
+			return bSucceeded;
+		}
+
+		public class SubscriptionParameters
+		{
+			public string MODULE { get; set; }
+			public Guid   ID     { get; set; }
+		}
+
+		[DotNetLegacyData]
+		[HttpPost("[action]")]
+		public bool AddSubscription([FromBody] SubscriptionParameters input)
+		{
+			string MODULE = input.MODULE;
+			Guid   ID     = input.ID    ;
+			bool bSucceeded = false;
+			//try
+			{
+				// 03/31/2012 Paul.  Use the standard filter to verify that the user can view the record. 
+				if ( !Sql.IsEmptyString(MODULE) && !Sql.IsEmptyGuid(ID) && Security.GetUserAccess(MODULE, "view") >= 0 )
+				{
+					string sTABLE_NAME = Modules.TableName(MODULE);
+					SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+					using ( IDbConnection con = dbf.CreateConnection() )
+					{
+						string sSQL ;
+						sSQL = "select NAME           " + ControlChars.CrLf
+						    + "  from vw" + sTABLE_NAME + ControlChars.CrLf;
+						using ( IDbCommand cmd = con.CreateCommand() )
+						{
+							cmd.CommandText = sSQL;
+							Security.Filter(cmd, MODULE, "view");
+							Sql.AppendParameter(cmd, ID, "ID", false);
+							con.Open();
+
+							using ( DbDataAdapter da = dbf.CreateDataAdapter() )
+							{
+								((IDbDataAdapter)da).SelectCommand = cmd;
+								using ( DataTable dt = new DataTable() )
+								{
+									da.Fill(dt);
+									if ( dt.Rows.Count > 0 )
+									{
+										DataRow rdr = dt.Rows[0];
+										string sNAME = Sql.ToString(rdr["NAME"]);
+										SqlProcs.spSUBSCRIPTIONS_Update(Security.USER_ID, MODULE, ID);
+										SplendidCache.ClearSubscriptions();
+										bSucceeded = true;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			//catch
+			{
+				// 02/04/2007 Paul.  Don't catch the exception.  
+				// It is a web service, so the exception will be handled properly by the AJAX framework. 
+			}
+			return bSucceeded;
+		}
+
+		[DotNetLegacyData]
+		[HttpPost("[action]")]
+		public bool RemoveSubscription([FromBody] SubscriptionParameters input)
+		{
+			string MODULE = input.MODULE;
+			Guid   ID     = input.ID    ;
+			bool bSucceeded = false;
+			//try
+			{
+				// 03/31/2012 Paul.  No need to validate on remove as the item would not be in the list if the user did not have access to it. 
+				if ( !Sql.IsEmptyString(MODULE) && !Sql.IsEmptyGuid(ID) && Security.GetUserAccess(MODULE, "view") >= 0 )
+				{
+					SqlProcs.spSUBSCRIPTIONS_Delete(Security.USER_ID, ID);
+					SplendidCache.ClearSubscriptions();
+					bSucceeded = true;
+				}
+			}
+			//catch
+			{
+				// 02/04/2007 Paul.  Don't catch the exception.  
+				// It is a web service, so the exception will be handled properly by the AJAX framework. 
+			}
+			return bSucceeded;
+		}
+
 		// 05/08/2019 Paul.  The React client will need to update the saved search of each module. 
+		[DotNetLegacyData]
 		[HttpPost("[action]")]
 		// 02/07/2022 Paul.  Must follow old convention of returning value under d.  { d: value }
-		public Dictionary<string, object> UpdateSavedSearch(Dictionary<string, object> dict)
+		public Guid UpdateSavedSearch(Dictionary<string, object> dict)
 		{
 			Guid gID = Guid.Empty;
 			//try
 			{
-				if ( !Security.IsAuthenticated() )
-					throw(new Exception("Authentication required"));
-				
 				// 05/13/2019 Paul.  The React client will need to save the search view by ID. 
 				// 01/19/2020 Paul.  The ID may not be provided, so we need to pevent a missing exception. 
 				       gID                = (dict.ContainsKey("ID"               ) ? Sql.ToGuid  (dict["ID"               ]) : Guid.Empty  );
@@ -4341,9 +6576,7 @@ namespace SplendidWebApi.Controllers
 				// 02/04/2007 Paul.  Don't catch the exception.  
 				// It is a web service, so the exception will be handled properly by the AJAX framework. 
 			}
-			Dictionary<string, object> d = new Dictionary<string, object>();
-			d.Add("d", gID.ToString());
-			return d;
+			return gID;
 		}
 
 		public class DeleteSavedSearchParameters
@@ -4365,11 +6598,70 @@ namespace SplendidWebApi.Controllers
 			SqlProcs.spSAVED_SEARCH_Delete(ID);
 		}
 
-		#region Delete
+		public class DashboardAddReportParameters
+		{
+			public Guid   DASHBOARD_ID { get; set; }
+			public string CATEGORY     { get; set; }
+			public Guid   REPORT_ID    { get; set; }
+		}
+
+		// 03/25/2020 Paul.  The React Client needs a Dashboard PopupView for the ReportDesigner. 
+		[DotNetLegacyData]
+		[HttpPost("[action]")]
+		public bool DashboardAddReport([FromBody] DashboardAddReportParameters input)
+		{
+			Guid   DASHBOARD_ID = input.DASHBOARD_ID;
+			string CATEGORY     = input.CATEGORY    ;
+			Guid   REPORT_ID    = input.REPORT_ID   ;
+			bool bSucceeded = false;
+			//try
+			{
+				if ( !Sql.IsEmptyString(CATEGORY) && !Sql.IsEmptyGuid(DASHBOARD_ID) && !Sql.IsEmptyGuid(REPORT_ID) )
+				{
+					SqlProcs.spDASHBOARDS_PANELS_AddReport(Security.USER_ID, Security.TEAM_ID, DASHBOARD_ID, CATEGORY, REPORT_ID);
+					Session.Remove("vwDASHBOARDS_PANELS.ReactClient");
+					bSucceeded = true;
+				}
+			}
+			//catch
+			{
+				// 02/04/2007 Paul.  Don't catch the exception.  
+				// It is a web service, so the exception will be handled properly by the AJAX framework. 
+			}
+			return bSucceeded;
+		}
+		#endregion
+
 		public class DeleteModuleItemParameters
 		{
 			public string ModuleName    { get; set; }
 			public Guid   ID            { get; set; }
+		}
+
+		#region Delete
+		[HttpPost("[action]")]
+		// 08/10/2020 Paul.  Separate method to delete recurrences. 
+		public void DeleteModuleRecurrences([FromBody] DeleteModuleItemParameters input)
+		{
+			string ModuleName    = Sql.ToString(input.ModuleName   );
+			Guid   ID            = Sql.ToGuid  (input.ID           );
+			
+			if ( Sql.IsEmptyString(ModuleName) )
+				throw(new Exception("The module name must be specified."));
+			string sTABLE_NAME = Sql.ToString(Application["Modules." + ModuleName + ".TableName"]);
+			if ( Sql.IsEmptyString(sTABLE_NAME) )
+				throw(new Exception("Unknown module: " + ModuleName));
+			// 08/22/2011 Paul.  Add admin control to REST API. 
+			int nACLACCESS = Security.GetUserAccess(ModuleName, "delete");
+			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + ModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
+			{
+				// 09/06/2017 Paul.  Include module name in error. 
+				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + Sql.ToString(ModuleName)));
+			}
+			
+			// 07/16/2019 Paul.  Add support for MassDelete. 
+			Guid[] arrID_LIST = new Guid[1] { ID };
+			DeleteTableItems(sTABLE_NAME, arrID_LIST, true);
 		}
 
 		// 3.2 Method Tunneling through POST. 
@@ -4536,6 +6828,18 @@ namespace SplendidWebApi.Controllers
 													}
 													if ( bAccessAllowed )
 													{
+														// 08/10/2020 Paul.  Separate method to delete recurrences. 
+														if ( bDeleteRecurrences )
+														{
+															if ( sTABLE_NAME == "CALLS" )
+															{
+																SqlProcs.spCALLS_DeleteRecurrences(gID, true, trn);
+															}
+															else if ( sTABLE_NAME == "MEETINGS" )
+															{
+																SqlProcs.spMEETINGS_DeleteRecurrences(gID, true, trn);
+															}
+														}
 														// 07/16/2019 Paul.  Add support for MassDelete. 
 														foreach(IDbDataParameter par in cmdDelete.Parameters)
 														{
@@ -4637,16 +6941,23 @@ namespace SplendidWebApi.Controllers
 				}
 			}
 			// 02/27/2021 Paul.  We need to correct for singulare table names, whereby the views and procedures are plural. 
-			if ( sTABLE_NAME == "PROJECT" )
-				sTABLE_NAME = "PROJECTS";
-			else if ( sTABLE_NAME == "PROJECT_TASK" )
-				sTABLE_NAME = "PROJECT_TASKS";
-			if ( sRELATED_TABLE == "PROJECT" )
-				sRELATED_TABLE = "PROJECTS";
-			else if ( sRELATED_TABLE == "PROJECT_TASK" )
-				sRELATED_TABLE = "PROJECT_TASKS";
+			// 05/08/2023 Paul.  Only change the relationship table, not the base table. 
+			//if ( sTABLE_NAME == "PROJECT" )
+			//	sTABLE_NAME = "PROJECTS";
+			//else if ( sTABLE_NAME == "PROJECT_TASK" )
+			//	sTABLE_NAME = "PROJECT_TASKS";
+			//if ( sRELATED_TABLE == "PROJECT" )
+			//	sRELATED_TABLE = "PROJECTS";
+			//else if ( sRELATED_TABLE == "PROJECT_TASK" )
+			//	sRELATED_TABLE = "PROJECT_TASKS";
 			
 			string sRELATIONSHIP_TABLE = sTABLE_NAME + "_" + sRELATED_TABLE;
+			// 05/08/2023 Paul.  Only change the relationship table, not the base table. 
+			if ( sTABLE_NAME == "PROJECT" || sTABLE_NAME == "PROJECT_TASK" )
+				sRELATIONSHIP_TABLE = sTABLE_NAME + "S_" + sRELATED_TABLE;
+			if ( sRELATED_TABLE == "PROJECT" || sRELATED_TABLE == "PROJECT_TASK" )
+				sRELATIONSHIP_TABLE = sTABLE_NAME + "_" + sRELATED_TABLE + "S";
+
 			string sMODULE_FIELD_NAME  = SplendidCRM.Crm.Modules.SingularTableName(sTABLE_NAME   ) + "_ID";
 			string sRELATED_FIELD_NAME = SplendidCRM.Crm.Modules.SingularTableName(sRELATED_TABLE) + "_ID";
 			// 11/24/2012 Paul.  In the special cases of Accounts Related and Contacts Reports To, we need to correct the field name. 
@@ -4700,6 +7011,11 @@ namespace SplendidWebApi.Controllers
 				sRELATIONSHIP_TABLE = "DOCUMENT_REVISIONS";
 				sMODULE_FIELD_NAME  = "DOCUMENT_ID";
 				sRELATED_FIELD_NAME = "ID";
+			}
+			// 01/18/2022 Paul.  Correct for poorly formed legacy procedure. 
+			else if ( sRELATIONSHIP_TABLE == "CAMPAIGNS_PROSPECT_LISTS" )
+			{
+				sRELATIONSHIP_TABLE = "PROSPECT_LIST_CAMPAIGNS";
 			}
 			
 			// 06/04/2011 Paul.  For relationships, we first need to check the access rights of the parent record. 
@@ -5104,16 +7420,184 @@ namespace SplendidWebApi.Controllers
 		}
 		#endregion
 
-		#region Archive
-		public class ArchiveMoveDataParameters
+		public class MassSyncParameters
 		{
 			public string ModuleName { get; set; }
 			public Guid[] ID_LIST    { get; set; }
 		}
 
+		#region Sync
+		// 07/16/2019 Paul.  Add support for Rest API for MassSync/MassUnsync. 
+		[HttpPost("[action]")]
+		public void MassSync([FromBody] MassSyncParameters input)
+		{
+			string ModuleName = input.ModuleName;
+			Guid[] ID_LIST    = input.ID_LIST   ;
+			
+			if ( Sql.IsEmptyString(ModuleName) )
+				throw(new Exception("The module name must be specified."));
+			string sTABLE_NAME = Sql.ToString(Application["Modules." + ModuleName + ".TableName"]);
+			if ( Sql.IsEmptyString(sTABLE_NAME) )
+				throw(new Exception("Unknown module: " + ModuleName));
+			int nACLACCESS = Security.GetUserAccess(ModuleName, "edit");
+			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + ModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
+			{
+				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + Sql.ToString(ModuleName)));
+			}
+			
+			List<string> arrID_LIST = new List<string>();
+			foreach ( Guid gID in ID_LIST )
+			{
+				arrID_LIST.Add(gID.ToString());
+			}
+			try
+			{
+				if ( Security.IsAuthenticated() )
+				{
+					SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+					using ( IDbConnection con = dbf.CreateConnection() )
+					{
+						con.Open();
+						System.Collections.Stack stk = Utils.FilterByACL_Stack(ModuleName, "edit", arrID_LIST.ToArray(), sTABLE_NAME);
+						if ( stk.Count > 0 )
+						{
+							using ( IDbTransaction trn = Sql.BeginTransaction(con) )
+							{
+								try
+								{
+									IDbCommand cmdMassSync = SqlProcs.Factory(con, "sp" + sTABLE_NAME + "_MassSync");
+									cmdMassSync.Transaction = trn;
+									while ( stk.Count > 0 )
+									{
+										string sIDs = Utils.BuildMassIDs(stk);
+										foreach(IDbDataParameter par in cmdMassSync.Parameters)
+										{
+											string sParameterName = Sql.ExtractDbName(cmdMassSync, par.ParameterName).ToUpper();
+											if ( sParameterName == "ID_LIST" )
+												par.Value = sIDs;
+											else if ( sParameterName == "MODIFIED_USER_ID" )
+												par.Value = Sql.ToDBGuid(Security.USER_ID);
+											else
+												par.Value = DBNull.Value;
+										}
+									}
+									trn.Commit();
+								}
+								catch(Exception ex)
+								{
+									// 02/13/2017 Paul.  Capture this error as the following can generate an "This SqlTransaction has completed" error on Azure. 
+									try
+									{
+										trn.Rollback();
+									}
+									catch
+									{
+									}
+									SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+									throw;
+								}
+							}
+						}
+					}
+				}
+			}
+			catch(Exception ex)
+			{
+				SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+				throw;
+			}
+		}
+
+		[HttpPost("[action]")]
+		public void MassUnsync([FromBody] MassSyncParameters input)
+		{
+			string ModuleName = input.ModuleName;
+			Guid[] ID_LIST    = input.ID_LIST   ;
+			if ( Sql.IsEmptyString(ModuleName) )
+				throw(new Exception("The module name must be specified."));
+			string sTABLE_NAME = Sql.ToString(Application["Modules." + ModuleName + ".TableName"]);
+			if ( Sql.IsEmptyString(sTABLE_NAME) )
+				throw(new Exception("Unknown module: " + ModuleName));
+			int nACLACCESS = Security.GetUserAccess(ModuleName, "edit");
+			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + ModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
+			{
+				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + Sql.ToString(ModuleName)));
+			}
+			
+			List<string> arrID_LIST = new List<string>();
+			foreach ( Guid gID in ID_LIST )
+			{
+				arrID_LIST.Add(gID.ToString());
+			}
+			try
+			{
+				if ( Security.IsAuthenticated() )
+				{
+					SplendidCRM.DbProviderFactory dbf = DbProviderFactories.GetFactory();
+					using ( IDbConnection con = dbf.CreateConnection() )
+					{
+						con.Open();
+						System.Collections.Stack stk = Utils.FilterByACL_Stack(ModuleName, "edit", arrID_LIST.ToArray(), sTABLE_NAME);
+						if ( stk.Count > 0 )
+						{
+							using ( IDbTransaction trn = Sql.BeginTransaction(con) )
+							{
+								try
+								{
+									IDbCommand cmdMassSync = SqlProcs.Factory(con, "sp" + sTABLE_NAME + "_MassUnsync");
+									cmdMassSync.Transaction = trn;
+									while ( stk.Count > 0 )
+									{
+										string sIDs = Utils.BuildMassIDs(stk);
+										foreach(IDbDataParameter par in cmdMassSync.Parameters)
+										{
+											string sParameterName = Sql.ExtractDbName(cmdMassSync, par.ParameterName).ToUpper();
+											if ( sParameterName == "ID_LIST" )
+												par.Value = sIDs;
+											else if ( sParameterName == "MODIFIED_USER_ID" )
+												par.Value = Sql.ToDBGuid(Security.USER_ID);
+											else
+												par.Value = DBNull.Value;
+										}
+									}
+									trn.Commit();
+								}
+								catch(Exception ex)
+								{
+									// 02/13/2017 Paul.  Capture this error as the following can generate an "This SqlTransaction has completed" error on Azure. 
+									try
+									{
+										trn.Rollback();
+									}
+									catch
+									{
+									}
+									SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+									throw;
+								}
+							}
+						}
+					}
+				}
+			}
+			catch(Exception ex)
+			{
+				SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
+				throw;
+			}
+		}
+		#endregion
+
+		public class ArchiveDataParameters
+		{
+			public string ModuleName { get; set; }
+			public Guid[] ID_LIST    { get; set; }
+		}
+
+		#region Archive
 		// 07/16/2019 Paul.  Add support for Rest API for ArchiveMoveData/ArchiveRecoverData. 
 		[HttpPost("[action]")]
-		public void ArchiveMoveData([FromBody] ArchiveMoveDataParameters input)
+		public void ArchiveMoveData([FromBody] ArchiveDataParameters input)
 		{
 			string ModuleName = input.ModuleName;
 			Guid[] ID_LIST    = input.ID_LIST   ;
@@ -5123,7 +7607,6 @@ namespace SplendidWebApi.Controllers
 			int nACLACCESS = Security.GetUserAccess(ModuleName, "archive");
 			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + ModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
 			{
-				L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + Sql.ToString(ModuleName)));
 			}
 			
@@ -5150,14 +7633,8 @@ namespace SplendidWebApi.Controllers
 			}
 		}
 
-		public class ArchiveRecoverDataParameters
-		{
-			public string ModuleName { get; set; }
-			public Guid[] ID_LIST    { get; set; }
-		}
-
 		[HttpPost("[action]")]
-		public void ArchiveRecoverData([FromBody] ArchiveRecoverDataParameters input)
+		public void ArchiveRecoverData([FromBody] ArchiveDataParameters input)
 		{
 			string ModuleName = input.ModuleName;
 			Guid[] ID_LIST    = input.ID_LIST   ;
@@ -5167,7 +7644,6 @@ namespace SplendidWebApi.Controllers
 			int nACLACCESS = Security.GetUserAccess(ModuleName, "archive");
 			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + ModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
 			{
-				L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + Sql.ToString(ModuleName)));
 			}
 			

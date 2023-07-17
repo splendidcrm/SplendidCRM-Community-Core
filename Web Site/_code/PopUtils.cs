@@ -195,7 +195,7 @@ namespace SplendidCRM
 					if ( email != null )
 					{
 						double dSize = pop.GetMessageSize(nMessageNumber);
-						MimeUtils.CreateMessageRecord(Context, dt, email, dSize);
+						MimeUtils.CreateMessageRecord(dt, email, dSize);
 					}
 				}
 			}
@@ -285,7 +285,7 @@ namespace SplendidCRM
 					MimeMessage email = MimeMessage.Load(stm);
 					if ( email != null )
 					{
-						DataRow row = MimeUtils.CreateMessageRecord(Context, dt, email, lstMessageSizes[nMessageIndex]);
+						DataRow row = MimeUtils.CreateMessageRecord(dt, email, lstMessageSizes[nMessageIndex]);
 					}
 					nMessageIndex++;
 				}
@@ -324,7 +324,7 @@ namespace SplendidCRM
 					}
 					if ( email != null && bLoadSuccessful )
 					{
-						gEMAIL_ID = MimeUtils.ImportMessage(Context, sPARENT_TYPE, gPARENT_ID, gUSER_ID, gASSIGNED_USER_ID, gTEAM_ID, sTEAM_SET_LIST, sUNIQUE_ID, email);
+						gEMAIL_ID = MimeUtils.ImportMessage(sPARENT_TYPE, gPARENT_ID, gUSER_ID, gASSIGNED_USER_ID, gTEAM_ID, sTEAM_SET_LIST, sUNIQUE_ID, email);
 					}
 				}
 				else

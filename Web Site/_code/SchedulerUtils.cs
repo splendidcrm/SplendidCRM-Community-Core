@@ -606,7 +606,7 @@ namespace SplendidCRM
 					}
 					catch(Exception ex)
 					{
-						SyncError.SystemMessage(Context, "Error", new StackTrace(true).GetFrame(0), ex);
+						SyncError.SystemMessage("Error", new StackTrace(true).GetFrame(0), ex);
 					}
 					break;
 				}

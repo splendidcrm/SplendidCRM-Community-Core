@@ -50,19 +50,21 @@ namespace SplendidCRM
 		private HttpResponse         Response           ;
 		private HttpSessionState     Session            ;
 		private Security             Security           ;
+		private L10N                 L10n               ;
 		private Sql                  Sql                ;
 		private SplendidError        SplendidError      ;
 		private SplendidCache        SplendidCache      ;
 		private SplendidDynamic      SplendidDynamic    ;
 
-		public SplendidExport(IWebHostEnvironment hostingEnvironment, IHttpContextAccessor httpContextAccessor, HttpSessionState Session, SplendidError SplendidError, SplendidCache SplendidCache, SplendidDynamic SplendidDynamic)
+		public SplendidExport(IWebHostEnvironment hostingEnvironment, IHttpContextAccessor httpContextAccessor, HttpSessionState Session, Security Security, Sql Sql, SplendidError SplendidError, SplendidCache SplendidCache, SplendidDynamic SplendidDynamic)
 		{
 			this.hostingEnvironment  = hostingEnvironment ;
 			this.Context             = httpContextAccessor.HttpContext;
 			this.Response            = this.Context.Response;
 			this.Session             = Session            ;
-			this.Security            = new Security(httpContextAccessor, Session);
-			this.Sql                 = new Sql(Session, Security);
+			this.Security            = Security           ;
+			this.L10n                = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
+			this.Sql                 = Sql                ;
 			this.SplendidError       = SplendidError      ;
 			this.SplendidCache       = SplendidCache      ;
 			this.SplendidDynamic     = SplendidDynamic    ;
@@ -90,7 +92,6 @@ namespace SplendidCRM
 					// 10/17/2006 Paul.  There must be one selected record to continue. 
 					if ( arrID == null )
 					{
-						L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 						throw(new Exception(L10n.Term(".LBL_LISTVIEW_NO_SELECTED")));
 					}
 					StringBuilder sbIDs = new StringBuilder();
@@ -499,7 +500,6 @@ namespace SplendidCRM
 		// 12/23/2015 Paul.  Public access to make it easier to export Survey Results. 
 		public void ExportExcelOpenXML(Stream stmResponse, DataView vw, string sModuleName, int nStartRecord, int nEndRecord)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 			// 09/08/2020 Paul.  Some customers want exported lists to be translated. 
 			Dictionary<string, string> dictTranslatedList = GetExportTranslatedLists(sModuleName);
 			
@@ -714,7 +714,6 @@ namespace SplendidCRM
 		// 12/23/2015 Paul.  Public access to make it easier to export Survey Results. 
 		public void ExportExcel(Stream stm, DataView vw, string sModuleName, int nStartRecord, int nEndRecord)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 			// 09/08/2020 Paul.  Some customers want exported lists to be translated. 
 			Dictionary<string, string> dictTranslatedList = GetExportTranslatedLists(sModuleName);
 			
@@ -947,7 +946,6 @@ namespace SplendidCRM
 		// 12/23/2015 Paul.  Public access to make it easier to export Survey Results. 
 		public void ExportXml(Stream stm, DataView vw, string sModuleName, int nStartRecord, int nEndRecord)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 			// 09/08/2020 Paul.  Some customers want exported lists to be translated. 
 			Dictionary<string, string> dictTranslatedList = GetExportTranslatedLists(sModuleName);
 			
@@ -1036,7 +1034,6 @@ namespace SplendidCRM
 		// 12/23/2015 Paul.  Public access to make it easier to export Survey Results. 
 		public void ExportDelimited(Stream stm, DataView vw, string sModuleName, int nStartRecord, int nEndRecord, char chDelimiter)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_LANG"]));
 			// 09/08/2020 Paul.  Some customers want exported lists to be translated. 
 			Dictionary<string, string> dictTranslatedList = GetExportTranslatedLists(sModuleName);
 			

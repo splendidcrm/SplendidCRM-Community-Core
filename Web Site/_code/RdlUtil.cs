@@ -20,6 +20,7 @@
  * "Copyright (C) 2005-2011 SplendidCRM Software, Inc. All rights reserved."
  *********************************************************************************************************************/
 using System;
+using System.IO;
 using System.Collections;
 using System.Collections.Generic;
 using System.Data;
@@ -39,6 +40,12 @@ namespace SplendidCRM
 {
 	public class RdlDocument : XmlDocument
 	{
+		private IWebHostEnvironment  hostingEnvironment ;
+		private XmlUtil              XmlUtil            ;
+		private HttpSessionState     Session            ;
+		private Security             Security           ;
+		private SplendidCache        SplendidCache      ;
+
 		// "http://schemas.microsoft.com/sqlserver/reporting/2003/10/reportdefinition"
 		// 06/20/2006 Paul.  Use the 2005 spec as it has better support for custom properties. 
 		public string sDefaultNamespace  = "http://schemas.microsoft.com/sqlserver/reporting/2005/01/reportdefinition";
@@ -47,31 +54,6 @@ namespace SplendidCRM
 
 		private XmlNamespaceManager nsmgr;
 		private StringBuilder sbValidationErrors;
-
-		private IWebHostEnvironment  hostingEnvironment ;
-		private DbProviderFactories  DbProviderFactories = new DbProviderFactories();
-		private HttpApplicationState Application = new HttpApplicationState();
-		private HttpContext          Context            ;
-		private HttpSessionState     Session            ;
-		private Security             Security           ;
-		private Sql                  Sql                ;
-		private SplendidError        SplendidError      ;
-		private SplendidCache        SplendidCache      ;
-		private SplendidDynamic      SplendidDynamic    ;
-		private XmlUtil              XmlUtil            ;
-
-		public RdlDocument(IWebHostEnvironment hostingEnvironment, IHttpContextAccessor httpContextAccessor, HttpSessionState Session, SplendidError SplendidError, SplendidCache SplendidCache, SplendidDynamic SplendidDynamic, XmlUtil XmlUtil)
-		{
-			this.hostingEnvironment  = hostingEnvironment ;
-			this.Context             = httpContextAccessor.HttpContext;
-			this.Session             = Session            ;
-			this.Security            = new Security(httpContextAccessor, Session);
-			this.Sql                 = new Sql(Session, Security);
-			this.SplendidError       = SplendidError      ;
-			this.SplendidCache       = SplendidCache      ;
-			this.SplendidDynamic     = SplendidDynamic    ;
-			this.XmlUtil             = XmlUtil            ;
-		}
 
 		public XmlNamespaceManager NamespaceManager
 		{
@@ -105,7 +87,7 @@ namespace SplendidCRM
 #endif
 		}
 
-		public void Validate()
+		public void Validate(IWebHostEnvironment hostingEnvironment)
 		{
 			// 01/05/2016 Paul.  Add support for ReportBuilder 2016 files. 
 			if ( sDefaultNamespace == "http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition" )
@@ -113,7 +95,7 @@ namespace SplendidCRM
 				// 08/25/2013 Paul.  File IO is slow, so cache existance test. 
 				if ( Utils.CachedFileExists(hostingEnvironment, "~/Reports/RDL 2016 ReportDefinition.xsd") )
 				{
-					string sRDLSchemaXSD = "~/Reports/RDL 2016 ReportDefinition.xsd".Replace("~", hostingEnvironment.ContentRootPath).Replace("/", "\\");
+					string sRDLSchemaXSD = "~/Reports/RDL 2016 ReportDefinition.xsd".Replace("~", hostingEnvironment.ContentRootPath);  // Context.Server.MapPath
 					XmlTextReader rdrRDLSchema = new XmlTextReader(sRDLSchemaXSD);
 					XmlSchema schRDL = XmlSchema.Read(rdrRDLSchema, new ValidationEventHandler(ValidationHandler));
 					this.Schemas.Add(schRDL);
@@ -127,7 +109,7 @@ namespace SplendidCRM
 				// 08/25/2013 Paul.  File IO is slow, so cache existance test. 
 				if ( Utils.CachedFileExists(hostingEnvironment, "~/Reports/RDL 2010 ReportDefinition.xsd") )
 				{
-					string sRDLSchemaXSD = "~/Reports/RDL 2010 ReportDefinition.xsd".Replace("~", hostingEnvironment.ContentRootPath).Replace("/", "\\");
+					string sRDLSchemaXSD = "~/Reports/RDL 2010 ReportDefinition.xsd".Replace("~", hostingEnvironment.ContentRootPath);  // Context.Server.MapPath
 					XmlTextReader rdrRDLSchema = new XmlTextReader(sRDLSchemaXSD);
 					XmlSchema schRDL = XmlSchema.Read(rdrRDLSchema, new ValidationEventHandler(ValidationHandler));
 					this.Schemas.Add(schRDL);
@@ -140,7 +122,7 @@ namespace SplendidCRM
 				// 08/25/2013 Paul.  File IO is slow, so cache existance test. 
 				if ( Utils.CachedFileExists(hostingEnvironment, "~/Reports/RDL 2008 ReportDefinition.xsd") )
 				{
-					string sRDLSchemaXSD = "~/Reports/RDL 2008 ReportDefinition.xsd".Replace("~", hostingEnvironment.ContentRootPath).Replace("/", "\\");
+					string sRDLSchemaXSD = "~/Reports/RDL 2008 ReportDefinition.xsd".Replace("~", hostingEnvironment.ContentRootPath);  // Context.Server.MapPath
 					XmlTextReader rdrRDLSchema = new XmlTextReader(sRDLSchemaXSD);
 					XmlSchema schRDL = XmlSchema.Read(rdrRDLSchema, new ValidationEventHandler(ValidationHandler));
 					this.Schemas.Add(schRDL);
@@ -153,7 +135,7 @@ namespace SplendidCRM
 				// 08/25/2013 Paul.  File IO is slow, so cache existance test. 
 				if ( Utils.CachedFileExists(hostingEnvironment, "~/Reports/RDL 2005 ReportDefinition.xsd") )
 				{
-					string sRDLSchemaXSD = "~/Reports/RDL 2005 ReportDefinition.xsd".Replace("~", hostingEnvironment.ContentRootPath).Replace("/", "\\");
+					string sRDLSchemaXSD = "~/Reports/RDL 2005 ReportDefinition.xsd".Replace("~", hostingEnvironment.ContentRootPath);  // Context.Server.MapPath
 					XmlTextReader rdrRDLSchema = new XmlTextReader(sRDLSchemaXSD);
 					XmlSchema schRDL = XmlSchema.Read(rdrRDLSchema, new ValidationEventHandler(ValidationHandler));
 					this.Schemas.Add(schRDL);
@@ -247,6 +229,7 @@ namespace SplendidCRM
 								string sVIEW_NAME  = sSharedDataSetReference;
 								string sTABLE_NAME = sVIEW_NAME.Substring(2, sVIEW_NAME.Length - 2);
 								StringBuilder sbCommandText = new StringBuilder();
+								DbProviderFactories  DbProviderFactories = new DbProviderFactories();
 								DbProviderFactory dbf = DbProviderFactories.GetFactory();
 								using ( IDbConnection con = dbf.CreateConnection() )
 								{
@@ -468,7 +451,7 @@ namespace SplendidCRM
 #endif
 			if ( bValidate )
 			{
-				Validate();
+				Validate(hostingEnvironment);
 			}
 		}
 
@@ -563,13 +546,24 @@ namespace SplendidCRM
 			XmlUtil.SetSingleNodeAttribute(this, parent, sAttribute, sValue, nsmgr, sDefaultNamespace);
 		}
 
-		public RdlDocument() : base()
+		public RdlDocument(IWebHostEnvironment hostingEnvironment, HttpSessionState Session, Security Security, SplendidCache SplendidCache, XmlUtil XmlUtil) : base()
 		{
+			this.hostingEnvironment  = hostingEnvironment ;
+			this.Session             = Session            ;
+			this.SplendidCache       = SplendidCache      ;
+			this.Security            = Security           ;
+			this.XmlUtil             = XmlUtil            ;
 			sbValidationErrors = new StringBuilder();
 		}
 
-		public RdlDocument(string sNAME) : base()
+		public RdlDocument(IWebHostEnvironment hostingEnvironment, HttpSessionState Session, Security Security, SplendidCache SplendidCache, XmlUtil XmlUtil, string sNAME) : base()
 		{
+			this.hostingEnvironment  = hostingEnvironment ;
+			this.XmlUtil             = XmlUtil            ;
+			this.Session             = Session            ;
+			this.Security            = Security           ;
+			this.SplendidCache       = SplendidCache      ;
+
 			this.AppendChild(this.CreateXmlDeclaration("1.0", "UTF-8", null));
 			//this.AppendChild(this.CreateProcessingInstruction("xml" , "version=\"1.0\" encoding=\"UTF-8\""));
 
@@ -588,8 +582,14 @@ namespace SplendidCRM
 			SetCustomProperty("ReportName", sNAME);
 		}
 
-		public RdlDocument(string sNAME, string sAUTHOR, bool bChart) : base()
+		public RdlDocument(IWebHostEnvironment hostingEnvironment, IHttpContextAccessor httpContextAccessor, HttpSessionState Session, SplendidCache SplendidCache, XmlUtil XmlUtil, string sNAME, string sAUTHOR, bool bChart) : base()
 		{
+			this.hostingEnvironment  = hostingEnvironment ;
+			this.XmlUtil             = XmlUtil            ;
+			this.hostingEnvironment  = hostingEnvironment ;
+			this.Session             = Session            ;
+			this.SplendidCache       = SplendidCache      ;
+
 			this.AppendChild(this.CreateXmlDeclaration("1.0", "UTF-8", null));
 			//this.AppendChild(this.CreateProcessingInstruction("xml" , "version=\"1.0\" encoding=\"UTF-8\""));
 
@@ -624,6 +624,7 @@ namespace SplendidCRM
 			SetSingleNode("Author"      , sAUTHOR     );
 
 			string sDataProvider = String.Empty;
+			DbProviderFactories  DbProviderFactories = new DbProviderFactories();
 			DbProviderFactory dbf = DbProviderFactories.GetFactory();
 			using ( IDbConnection con = dbf.CreateConnection() )
 			{
@@ -760,7 +761,7 @@ namespace SplendidCRM
 			}
 		}
 
-		public DataTable CreateDataTable()
+		public DataTable CreateDataTable(SplendidError SplendidError)
 		{
 			DataTable dt = new DataTable("ReportItems");
 			dt.Columns.Add("text" );
@@ -800,7 +801,7 @@ namespace SplendidCRM
 			return dt;
 		}
 
-		public string RdlName(string sName)
+		public static string RdlName(string sName)
 		{
 			sName = Regex.Replace(sName, @"[\[\]]" , "");
 			sName = Regex.Replace(sName, @"[\.\: ]", "__");
@@ -1023,7 +1024,7 @@ namespace SplendidCRM
 		}
 
 		// 11/06/2011 Paul.  MS Charts do the grouping after the selected.  We will convert the select to do the grouping. 
-		public void BuildChartCommand(HttpContext Context, XmlNode xDataSet, IDbCommand cmd)
+		public void BuildChartCommand(XmlUtil XmlUtil, XmlNode xDataSet, IDbCommand cmd)
 		{
 			if ( Sql.IsOracle(cmd) )
 			{
@@ -1297,7 +1298,7 @@ namespace SplendidCRM
 			return sTypeName;
 		}
 
-		protected string RdlValue(string sValue)
+		protected static string RdlValue(string sValue)
 		{
 			if ( sValue.StartsWith("=") )
 			{
@@ -1311,13 +1312,13 @@ namespace SplendidCRM
 			return sValue;
 		}
 
-		public string RdlParameterName(string sDATA_FIELD, int nParameterIndex, bool bSecondary)
+		public static string RdlParameterName(string sDATA_FIELD, int nParameterIndex, bool bSecondary)
 		{
 			//
-			return "@" + RdlName(sDATA_FIELD) + "__" + nParameterIndex.ToString("00") + (bSecondary ? "B" : "A");
+			return "@" + RdlDocument.RdlName(sDATA_FIELD) + "__" + nParameterIndex.ToString("00") + (bSecondary ? "B" : "A");
 		}
 
-		public string RdlFieldFromParameter(string sName)
+		public static string RdlFieldFromParameter(string sName)
 		{
 			// 07/13/2006 Paul.  The field name now always starts with @ and ends with __00A, with the last two digits being the parameter index. 
 			if ( sName.StartsWith("@") )
@@ -1406,7 +1407,7 @@ namespace SplendidCRM
 		}
 
 		// 11/16/2008 Paul.  DbSpecificDate is only called from the workflow engine, so it is safe to convert TODAY() for SQL Server. 
-		public string DbSpecificDate(string sSplendidProvider, string sValue)
+		public static string DbSpecificDate(string sSplendidProvider, string sValue)
 		{
 			sValue = sValue.ToUpper();
 			if ( sSplendidProvider == "System.Data.OracleClient" || sSplendidProvider == "Oracle.DataAccess.Client" )
@@ -1527,7 +1528,7 @@ namespace SplendidCRM
 			return sValue;
 		}
 
-		public void BuildCommand(HttpContext Context, XmlNode xDataSet, IDbCommand cmd)
+		public void BuildCommand(XmlUtil XmlUtil, XmlNode xDataSet, IDbCommand cmd)
 		{
 			// 03/14/2011 Paul.  Oracle can have date formatting issues, so force a .NET friendly date format. 
 			if ( Sql.IsOracle(cmd) )
@@ -1551,6 +1552,7 @@ namespace SplendidCRM
 				{
 					string sVIEW_NAME  = sSharedDataSetReference;
 					string sTABLE_NAME = sVIEW_NAME.Substring(2, sVIEW_NAME.Length - 2);
+					DbProviderFactories  DbProviderFactories = new DbProviderFactories();
 					DbProviderFactory dbf = DbProviderFactories.GetFactory();
 					using ( DataTable dtColumns = new DataTable() )
 					{
@@ -2280,7 +2282,6 @@ namespace SplendidCRM
 		}
 	}
 
-/*
 	public class RdsDocument : XmlDocument
 	{
 		public string sDefaultNamespace         = "http://schemas.microsoft.com/sqlserver/reporting/2010/01/shareddatasetdefinition";
@@ -2289,6 +2290,13 @@ namespace SplendidCRM
 
 		private XmlNamespaceManager nsmgr;
 		private StringBuilder sbValidationErrors;
+
+		private XmlUtil XmlUtil;
+
+		public RdsDocument(XmlUtil XmlUtil)
+		{
+			this.XmlUtil = XmlUtil;
+		}
 
 		public XmlNamespaceManager NamespaceManager
 		{
@@ -2319,12 +2327,12 @@ namespace SplendidCRM
 			}
 		}
 
-		public void Validate(IWebHostEnvironment  hostingEnvironment)
+		public void Validate(IWebHostEnvironment hostingEnvironment)
 		{
 			// 08/25/2013 Paul.  File IO is slow, so cache existance test. 
 			if ( Utils.CachedFileExists(hostingEnvironment, "~/Reports/RDS 2008 Shared DataSet Definition.xsd") )
 			{
-				string sRDLSchemaXSD = "~/Reports/RDS 2008 Shared DataSet Definition.xsd".Replace("~", hostingEnvironment.ContentRootPath).Replace("/", "\\");
+				string sRDLSchemaXSD = "~/Reports/RDS 2008 Shared DataSet Definition.xsd".Replace("~", hostingEnvironment.ContentRootPath);  // Context.Server.MapPath
 				XmlTextReader rdrRDLSchema = new XmlTextReader(sRDLSchemaXSD);
 				XmlSchema schRDL = XmlSchema.Read(rdrRDLSchema, new ValidationEventHandler(ValidationHandler));
 				this.Schemas.Add(schRDL);
@@ -2430,7 +2438,7 @@ namespace SplendidCRM
 			XmlUtil.SetSingleNodeAttribute(this, parent, sAttribute, sValue, nsmgr, sDefaultNamespace);
 		}
 
-		public string RdlName(string sName)
+		public static string RdlName(string sName)
 		{
 			sName = Regex.Replace(sName, @"[\[\]]" , "");
 			sName = Regex.Replace(sName, @"[\.\: ]", "__");
@@ -2470,12 +2478,14 @@ namespace SplendidCRM
 			xQueryDefinition.AppendChild(xSelectedColumns);
 		}
 
-		//public XmlNode GetSelectedColumns()
-		//{
-		//	XmlNode xDesignerState   = this.SelectNode("DataSet/Query/rd:DesignerState");
-		//	XmlNode xSelectedColumns = XmlUtil.SelectNode(xDesignerState, "qd:QueryDefinition/qd:SelectedColumns", nsmgr);
-		//	return xSelectedColumns;
-		//}
+		/*
+		public XmlNode GetSelectedColumns()
+		{
+			XmlNode xDesignerState   = this.SelectNode("DataSet/Query/rd:DesignerState");
+			XmlNode xSelectedColumns = XmlUtil.SelectNode(xDesignerState, "qd:QueryDefinition/qd:SelectedColumns", nsmgr);
+			return xSelectedColumns;
+		}
+		*/
 
 		public void AppendField(XmlNode parent, string sFieldName, string sFieldType)
 		{
@@ -2501,15 +2511,42 @@ namespace SplendidCRM
 			this.SetSingleNodeAttribute(xColumnExpression, "ColumnName" , sColumnName );
 		}
 	}
-*/
 
 	/// <summary>
 	/// Summary description for RdlUtil.
 	/// </summary>
 	public partial class RdlUtil
 	{
+		private IWebHostEnvironment  hostingEnvironment ;
+		private IHttpContextAccessor httpContextAccessor;
+		private HttpContext          Context            ;
+		private SplendidCRM.DbProviderFactories  DbProviderFactories = new SplendidCRM.DbProviderFactories();
+		private HttpApplicationState Application        = new HttpApplicationState();
+		private HttpSessionState     Session            ;
+		private Security             Security           ;
+		private Sql                  Sql                ;
+		private SplendidError        SplendidError      ;
+		private SplendidCache        SplendidCache      ;
+		private XmlUtil              XmlUtil            ;
+		private ExchangeSecurity     ExchangeSecurity   ;
+
+		public RdlUtil(IWebHostEnvironment hostingEnvironment, IHttpContextAccessor httpContextAccessor, HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, SplendidCache SplendidCache, XmlUtil XmlUtil, ExchangeSecurity ExchangeSecurity) : base()
+		{
+			this.httpContextAccessor = httpContextAccessor;
+			this.Context             = httpContextAccessor.HttpContext;
+			this.hostingEnvironment  = hostingEnvironment ;
+			this.Session             = Session            ;
+			this.Security            = Security           ;
+			this.Sql                 = Sql                ;
+			this.SplendidError       = SplendidError      ;
+			this.SplendidCache       = SplendidCache      ;
+			this.Security            = Security           ;
+			this.XmlUtil             = XmlUtil            ;
+			this.ExchangeSecurity    = ExchangeSecurity   ;
+		}
+
 		/*
-		public string GetFieldsAsString(XmlDocument xml)
+		public static string GetFieldsAsString(XmlDocument xml)
 		{
 			StringBuilder sb = new StringBuilder();
 			if ( xml.DocumentElement != null )
@@ -2529,7 +2566,7 @@ namespace SplendidCRM
 		*/
 
 		// 07/15/2010 Paul.  Use new function to format Rdl. 
-		public string RdlEncode(RdlDocument rdl)
+		public static string RdlEncode(RdlDocument rdl)
 		{
 			StringBuilder sb = new StringBuilder();
 			XmlUtil.Dump(ref sb, "", rdl.DocumentElement);
@@ -2540,7 +2577,7 @@ namespace SplendidCRM
 			return sDump;
 		}
 
-		public string ReportColumnName(string sColumnName)
+		public static string ReportColumnName(string sColumnName)
 		{
 			Regex r = new Regex(@"[^A-Za-z0-9_\.]");
 			sColumnName = r.Replace(sColumnName, "");

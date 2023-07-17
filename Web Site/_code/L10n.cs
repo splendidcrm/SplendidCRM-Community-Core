@@ -61,7 +61,7 @@ namespace SplendidCRM
 			HttpSessionState Session = Context.Features.Get<HttpSessionState>();
 			if ( Session != null )
 			{
-				sNAME = Sql.ToString(Session["USER_LANG"]);
+				sNAME = Sql.ToString(Session["USER_SETTINGS/CULTURE"]);
 			}
 			this.m_sNAME = NormalizeCulture(sNAME);
 		}

@@ -25,68 +25,47 @@ using System.Xml;
 using System.Data;
 using System.Data.Common;
 using System.Text;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using System.Diagnostics;
 
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Authorization;
 
-using SplendidCRM;
-
-namespace SplendidWebApi.Controllers
+namespace SplendidCRM.Controllers.Import
 {
 	[Authorize]
+	[SplendidSessionAuthorize]
 	[ApiController]
-	[Route("Administration/Import/Rest.svc")]
-	public class ImportRestController : ControllerBase
+	[Route("Import/Rest.svc")]
+	public class RestController : ControllerBase
 	{
 		public const string MODULE_NAME = "Import";
-		private HttpContext          Context            ;
-		private IWebHostEnvironment  hostingEnvironment ;
-		private IMemoryCache         memoryCache        ;
 		private SplendidCRM.DbProviderFactories  DbProviderFactories = new SplendidCRM.DbProviderFactories();
 		private HttpApplicationState Application        = new HttpApplicationState();
 		private HttpSessionState     Session            ;
 		private Security             Security           ;
 		private Sql                  Sql                ;
 		private L10N                 L10n               ;
-		private Currency             Currency           = new Currency();
 		private SplendidCRM.TimeZone TimeZone           = new SplendidCRM.TimeZone();
-		private Utils                Utils              ;
 		private SqlProcs             SqlProcs           ;
 		private SplendidError        SplendidError      ;
 		private SplendidCache        SplendidCache      ;
-		private RestUtil             RestUtil           ;
 		private SplendidImport       SplendidImport     ;
 		private ImportUtils          ImportUtils        ;
 		private XmlUtil              XmlUtil            ;
-		private SplendidCRM.Crm.Modules          Modules          ;
-		private SplendidCRM.Crm.Config           Config           = new SplendidCRM.Crm.Config();
 
-		public ImportRestController(IWebHostEnvironment hostingEnvironment, IMemoryCache memoryCache, HttpSessionState Session, Security Security, Utils Utils, SplendidError SplendidError, SplendidCache SplendidCache, RestUtil RestUtil, SplendidImport SplendidImport, ImportUtils ImportUtils, XmlUtil XmlUtil, SplendidCRM.Crm.Modules Modules)
+		public RestController(HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, SplendidCache SplendidCache, SplendidImport SplendidImport, ImportUtils ImportUtils, XmlUtil XmlUtil)
 		{
-			this.Context             = this.HttpContext   ;
-			this.hostingEnvironment  = hostingEnvironment ;
-			this.memoryCache         = memoryCache        ;
 			this.Session             = Session            ;
 			this.Security            = Security           ;
-			this.L10n                = new L10N(Sql.ToString(Session["USER_LANG"]));
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
-			this.Utils               = Utils              ;
+			this.L10n                = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
+			this.Sql                 = Sql                ;
+			this.SqlProcs            = SqlProcs           ;
 			this.SplendidError       = SplendidError      ;
 			this.SplendidCache       = SplendidCache      ;
-			this.RestUtil            = RestUtil           ;
 			this.SplendidImport      = SplendidImport     ;
 			this.ImportUtils         = ImportUtils        ;
 			this.XmlUtil             = XmlUtil            ;
-			this.Modules             = Modules            ;
 		}
 
 		[HttpPost("[action]")]
@@ -103,7 +82,6 @@ namespace SplendidWebApi.Controllers
 			results.Add("QuickBooksOnline", !Sql.IsEmptyString(Application["CONFIG.QuickBooks.OAuthClientID"   ]));
 			results.Add("HubSpot"         , !Sql.IsEmptyString(Application["CONFIG.HubSpot.PortalID"           ]));
 
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 			string sTABLE_NAME = Sql.ToString(Application["Modules." + ImportModule + ".TableName"]);
 			if ( Sql.IsEmptyString(sTABLE_NAME) )
 				throw(new Exception("Unknown module: " + ImportModule));
@@ -146,11 +124,8 @@ namespace SplendidWebApi.Controllers
 			int nACLACCESS = Security.GetUserAccess(ImportModule, "import");
 			if ( !Security.IsAuthenticated() || nACLACCESS < 0 )
 			{
-				L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
 			}
-			// 11/16/2014 Paul.  We need to continually update the SplendidSession so that it expires along with the ASP.NET Session. 
-			
 			StringBuilder sbDumpSQL = new StringBuilder();
 			// Accounts, Contacts, Leads, Prospects, Calls
 			DataTable dt = new DataTable();
@@ -200,7 +175,6 @@ namespace SplendidWebApi.Controllers
 			int nACLACCESS = Security.GetUserAccess(ImportModule, "import");
 			if ( !Security.IsAuthenticated() || nACLACCESS < 0 )
 			{
-				L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + Sql.ToString(ImportModule)));
 			}
 			
@@ -302,12 +276,6 @@ namespace SplendidWebApi.Controllers
 		[HttpPost("[action]")]
 		public void DeleteImportMap(Guid ID)
 		{
-			if ( !Security.IsAuthenticated() )
-			{
-				L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid gASSIGNED_USER_ID = GetAssignedUserID(ID);
 			if ( Security.IS_ADMIN || gASSIGNED_USER_ID == Security.USER_ID )
 			{
@@ -477,15 +445,8 @@ namespace SplendidWebApi.Controllers
 		}
 
 		[HttpPost("[action]")]
-		public Guid UpdateImportMap([FromBody] Dictionary<string, object> dict)
+		public Dictionary<string, object> UpdateImportMap([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			// 11/16/2014 Paul.  We need to continually update the SplendindSession so that it expires along with the ASP.NET Session. 
-			
 			string sImportModule     = String.Empty;
 			Guid   gID               = Guid.Empty;
 			string sNAME             = String.Empty;
@@ -542,7 +503,9 @@ namespace SplendidWebApi.Controllers
 				, xmlMapping.OuterXml
 				, String.Empty // sbRulesXML.ToString()
 				);
-			return gID;
+			Dictionary<string, object> d = new Dictionary<string, object>();
+			d.Add("d", gID);
+			return d;
 		}
 
 		// 06/06/2021 Paul.  ValidateRule was moved to ~/RulesWizard/Rest.svc. 
@@ -550,12 +513,6 @@ namespace SplendidWebApi.Controllers
 		[HttpPost("[action]")]
 		public Dictionary<string, object> UploadFile([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			string sImportModule         = (dict.ContainsKey("ImportModule"        ) ? Sql.ToString(dict["ImportModule"        ]) : String.Empty);
 			string sSOURCE               = (dict.ContainsKey("SOURCE"              ) ? Sql.ToString(dict["SOURCE"              ]) : String.Empty);
 			string sCUSTOM_DELIMITER_VAL = (dict.ContainsKey("CUSTOM_DELIMITER_VAL") ? Sql.ToString(dict["CUSTOM_DELIMITER_VAL"]) : String.Empty);
@@ -660,12 +617,6 @@ namespace SplendidWebApi.Controllers
 			// 02/05/2010 Paul.  An ACT! import can take a long time. 
 			// 04/30/2023 Paul.  TODO.  Increase script timeout. 
 			//Server.ScriptTimeout = 20 * 60;
-			
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
 			
 			string sImportModule     = String.Empty;
 			Guid   gPROSPECT_LIST_ID = Guid.Empty;
@@ -816,7 +767,6 @@ namespace SplendidWebApi.Controllers
 			int nACLACCESS = Security.GetUserAccess(ModuleName, "list");
 			if ( !Security.IsAuthenticated() || !Sql.ToBoolean(Application["Modules." + ModuleName + ".RestEnabled"]) || nACLACCESS < 0 )
 			{
-				L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 				// 09/06/2017 Paul.  Include module name in error. 
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS") + ": " + Sql.ToString(ModuleName)));
 			}

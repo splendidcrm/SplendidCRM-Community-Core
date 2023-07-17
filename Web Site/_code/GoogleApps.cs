@@ -37,47 +37,47 @@ namespace SplendidCRM
 			return false;
 		}
 
-		public static Google.Apis.Auth.OAuth2.Responses.TokenResponse RefreshAccessToken(HttpApplicationState Application, Guid gUSER_ID, bool bForceRefresh)
+		public static Google.Apis.Auth.OAuth2.Responses.TokenResponse RefreshAccessToken(Guid gUSER_ID, bool bForceRefresh)
 		{
 			throw(new Exception("GoogleApps integration is not supported."));
 		}
 
-		public static bool TestAccessToken(HttpApplicationState Application, Guid gUSER_ID, StringBuilder sbErrors)
+		public static bool TestAccessToken(Guid gUSER_ID, StringBuilder sbErrors)
 		{
 			throw(new Exception("GoogleApps integration is not supported."));
 		}
 
-		public static string GetEmailAddress(HttpApplicationState Application, Guid gUSER_ID, StringBuilder sbErrors)
+		public static string GetEmailAddress(Guid gUSER_ID, StringBuilder sbErrors)
 		{
 			throw(new Exception("GoogleApps integration is not supported."));
 		}
 
-		public static bool TestMailbox(HttpApplicationState Application, Guid gUSER_ID, string sMAILBOX, StringBuilder sbErrors)
+		public static bool TestMailbox(Guid gUSER_ID, string sMAILBOX, StringBuilder sbErrors)
 		{
 			throw(new Exception("GoogleApps integration is not supported."));
 		}
 
-		public static void SendTestMessage(HttpApplicationState Application, Guid gOAUTH_TOKEN_ID, string sFromAddress, string sFromName, string sToAddress, string sToName)
+		public static void SendTestMessage(Guid gOAUTH_TOKEN_ID, string sFromAddress, string sFromName, string sToAddress, string sToName)
 		{
 			throw(new Exception("GoogleApps integration is not supported."));
 		}
 
-		public static MimeKit.MimeMessage GetMimeMessage(HttpContext Context, Guid gUSER_ID, string sUNIQUE_ID)
+		public static MimeKit.MimeMessage GetMimeMessage(Guid gUSER_ID, string sUNIQUE_ID)
 		{
 			throw(new Exception("GoogleApps integration is not supported."));
 		}
 
-		public static void MarkAsRead(HttpContext Context, Guid gUSER_ID, string sUNIQUE_ID)
+		public static void MarkAsRead(Guid gUSER_ID, string sUNIQUE_ID)
 		{
 			throw(new Exception("GoogleApps integration is not supported."));
 		}
 
-		public static void MarkAsUnread(HttpContext Context, Guid gUSER_ID, string sUNIQUE_ID)
+		public static void MarkAsUnread(Guid gUSER_ID, string sUNIQUE_ID)
 		{
 			throw(new Exception("GoogleApps integration is not supported."));
 		}
 
-		public static DataTable GetFolderMessages(HttpContext Context, Guid gUSER_ID, string sFOLDER_ID, bool bONLY_SINCE, long nLAST_EMAIL_UID, int nMaxRecords)
+		public static DataTable GetFolderMessages(Guid gUSER_ID, string sFOLDER_ID, bool bONLY_SINCE, long nLAST_EMAIL_UID, int nMaxRecords)
 		{
 			throw(new Exception("GoogleApps integration is not supported."));
 		}

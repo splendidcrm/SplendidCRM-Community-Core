@@ -22,66 +22,46 @@
 using System;
 using System.Data;
 using System.Data.Common;
-using System.Threading;
+using System.Collections.Generic;
 using System.Threading.Tasks;
-using System.Diagnostics;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Authorization;
 
-using SplendidCRM;
-
-namespace SplendidWebApi.Controllers
+namespace SplendidCRM.Controllers.Campaigns
 {
 	[Authorize]
+	[SplendidSessionAuthorize]
 	[ApiController]
 	[Route("Campaigns/Rest.svc")]
-	public class CampaignsRestController : ControllerBase
+	public class RestController : ControllerBase
 	{
-		private HttpContext          Context            ;
 		private IHttpContextAccessor httpContextAccessor;
-		private IWebHostEnvironment  hostingEnvironment ;
-		private IMemoryCache         memoryCache        ;
 		private SplendidCRM.DbProviderFactories  DbProviderFactories = new SplendidCRM.DbProviderFactories();
 		private HttpApplicationState Application        = new HttpApplicationState();
 		private HttpSessionState     Session            ;
 		private Security             Security           ;
 		private Sql                  Sql                ;
-		private L10N                 L10n               ;
-		private Currency             Currency           = new Currency();
-		private SplendidCRM.TimeZone TimeZone           = new SplendidCRM.TimeZone();
-		private Utils                Utils              ;
 		private SqlProcs             SqlProcs           ;
+		private L10N                 L10n               ;
 		private SplendidError        SplendidError      ;
-		private SplendidCache        SplendidCache      ;
-		private RestUtil             RestUtil           ;
 		private EmailUtils           EmailUtils         ;
 		private SplendidCRM.Crm.Modules          Modules          ;
-		private SplendidCRM.Crm.Config           Config           = new SplendidCRM.Crm.Config();
-		private IBackgroundTaskQueue             _taskQueue       ;
+		private IBackgroundTaskQueue taskQueue          ;
 
-		public CampaignsRestController(IHttpContextAccessor httpContextAccessor, IWebHostEnvironment hostingEnvironment, IMemoryCache memoryCache, HttpSessionState Session, Security Security, Utils Utils, SplendidError SplendidError, SplendidCache SplendidCache, RestUtil RestUtil, EmailUtils EmailUtils, SplendidCRM.Crm.Modules Modules, IBackgroundTaskQueue taskQueue)
+		public RestController(IHttpContextAccessor httpContextAccessor, HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, EmailUtils EmailUtils, SplendidCRM.Crm.Modules Modules, IBackgroundTaskQueue taskQueue)
 		{
-			this.Context             = this.HttpContext   ;
 			this.httpContextAccessor = httpContextAccessor;
-			this.hostingEnvironment  = hostingEnvironment ;
-			this.memoryCache         = memoryCache        ;
 			this.Session             = Session            ;
 			this.Security            = Security           ;
-			this.L10n                = new L10N(Sql.ToString(Session["USER_LANG"]));
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
-			this.Utils               = Utils              ;
+			this.L10n                = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
+			this.Sql                 = Sql                ;
+			this.SqlProcs            = SqlProcs           ;
 			this.SplendidError       = SplendidError      ;
-			this.SplendidCache       = SplendidCache      ;
-			this.RestUtil            = RestUtil           ;
 			this.EmailUtils          = EmailUtils         ;
 			this.Modules             = Modules            ;
-			this._taskQueue          = taskQueue          ;
+			this.taskQueue           = taskQueue          ;
 		}
 
 		private DataRow GetCampaign(Guid gID)
@@ -120,9 +100,8 @@ namespace SplendidWebApi.Controllers
 		}
 
 		[HttpPost("[action]")]
-		public async Task<string> SendTest()
+		public async Task<Dictionary<string, object>> SendTest()
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 			if ( !Security.IsAuthenticated() || Security.GetUserAccess("Campaigns", "view") < 0 )
 			{
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
@@ -143,8 +122,8 @@ namespace SplendidWebApi.Controllers
 						{
 							// 06/16/2011 Paul.  Placing the emails in queue can take a long time, so place into a thread. 
 							// 08/22/2011 Paul.  We need to use a class so that we can pass the context and the ID. 
-							CampaignUtils.SendMail send = new CampaignUtils.SendMail(httpContextAccessor, Session, SplendidError, EmailUtils, gID, true);
-							await _taskQueue.QueueBackgroundWorkItemAsync(send.QueueStart);
+							CampaignUtils.SendMail send = new CampaignUtils.SendMail(Session, Security, Sql, SqlProcs, SplendidError, EmailUtils, gID, true);
+							await taskQueue.QueueBackgroundWorkItemAsync(send.QueueStart);
 							// 08/22/2011 Paul.  The SendEmail thread will be aborted if we redirect the page. 
 							sStatus = L10n.Term("Campaigns.LBL_SENDING");
 						}
@@ -167,13 +146,14 @@ namespace SplendidWebApi.Controllers
 			{
 				throw(new Exception("ID is empty"));
 			}
-			return sStatus;
+			Dictionary<string, object> d = new Dictionary<string, object>();
+			d.Add("d", sStatus);
+			return d;
 		}
 
 		[HttpPost("[action]")]
-		public async Task<string> SendEmail()
+		public async Task<Dictionary<string, object>> SendEmail()
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 			if ( !Security.IsAuthenticated() || Security.GetUserAccess("Campaigns", "view") < 0 )
 			{
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
@@ -194,8 +174,8 @@ namespace SplendidWebApi.Controllers
 						{
 							// 06/16/2011 Paul.  Placing the emails in queue can take a long time, so place into a thread. 
 							// 08/22/2011 Paul.  We need to use a class so that we can pass the context and the ID. 
-							CampaignUtils.SendMail send = new CampaignUtils.SendMail(httpContextAccessor, Session, SplendidError, EmailUtils, gID, false);
-							await _taskQueue.QueueBackgroundWorkItemAsync(send.QueueStart);
+							CampaignUtils.SendMail send = new CampaignUtils.SendMail(Session, Security, Sql, SqlProcs, SplendidError, EmailUtils, gID, false);
+							await taskQueue.QueueBackgroundWorkItemAsync(send.QueueStart);
 							// 08/22/2011 Paul.  The SendEmail thread will be aborted if we redirect the page. 
 							sStatus = L10n.Term("Campaigns.LBL_SENDING");
 						}
@@ -218,13 +198,14 @@ namespace SplendidWebApi.Controllers
 			{
 				throw(new Exception("ID is empty"));
 			}
-			return sStatus;
+			Dictionary<string, object> d = new Dictionary<string, object>();
+			d.Add("d", sStatus);
+			return d;
 		}
 
 		[HttpPost("[action]")]
-		public async Task<string> GenerateCalls()
+		public async Task<Dictionary<string, object>> GenerateCalls()
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 			if ( !Security.IsAuthenticated() || Security.GetUserAccess("Campaigns", "view") < 0 )
 			{
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
@@ -242,8 +223,8 @@ namespace SplendidWebApi.Controllers
 					{
 						if ( !Sql.ToBoolean(Application["Campaigns." + gID.ToString() + ".Sending"]) )
 						{
-							CampaignUtils.GenerateCalls send = new CampaignUtils.GenerateCalls(httpContextAccessor, Session, SplendidError, EmailUtils, gID, false);
-							await _taskQueue.QueueBackgroundWorkItemAsync(send.QueueStart);
+							CampaignUtils.GenerateCalls send = new CampaignUtils.GenerateCalls(Session, Security, Sql, SqlProcs, SplendidError, EmailUtils, gID, false);
+							await taskQueue.QueueBackgroundWorkItemAsync(send.QueueStart);
 							sStatus = L10n.Term("Campaigns.LBL_SENDING");
 						}
 						else
@@ -265,7 +246,9 @@ namespace SplendidWebApi.Controllers
 			{
 				throw(new Exception("ID is empty"));
 			}
-			return sStatus;
+			Dictionary<string, object> d = new Dictionary<string, object>();
+			d.Add("d", sStatus);
+			return d;
 		}
 
 	}

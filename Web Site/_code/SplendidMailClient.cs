@@ -32,22 +32,22 @@ namespace SplendidCRM
 		abstract public void Send(MailMessage mail);
 
 		// 01/18/2017 Paul.  This method will return the appropriate Campaign Manager client, based on configuration. This is the global email sending account. 
-		public static SplendidMailClient CreateMailClient(HttpApplicationState Application, IMemoryCache memoryCache, Security Security, SplendidError SplendidError)
+		public static SplendidMailClient CreateMailClient(HttpApplicationState Application, IMemoryCache memoryCache, Security Security, SplendidError SplendidError, GoogleApps GoogleApps, Spring.Social.Office365.Office365Sync Office365Sync)
 		{
 			string sMAIL_SENDTYPE = Sql.ToString(Application["CONFIG.mail_sendtype"]);
 			SplendidMailClient client = null;
 			if ( String.Compare(sMAIL_SENDTYPE, "Office365", true) == 0 )
 			{
-				client = new SplendidMailOffice365(Application, ExchangeUtils.EXCHANGE_ID);
+				client = new SplendidMailOffice365(Office365Sync, ExchangeUtils.EXCHANGE_ID);
 			}
 			// 01/31/2017 Paul.  Add support for Exchange using Username/Password. 
 			else if ( String.Compare(sMAIL_SENDTYPE, "Exchange-Password", true) == 0 )
 			{
-				client = new SplendidMailExchangePassword(Application);
+				client = new SplendidMailExchangePassword(Security);
 			}
 			else if ( String.Compare(sMAIL_SENDTYPE, "GoogleApps", true) == 0 )
 			{
-				client = new SplendidMailGmail(Application, EmailUtils.CAMPAIGN_MANAGER_ID);
+				client = new SplendidMailGmail(GoogleApps, EmailUtils.CAMPAIGN_MANAGER_ID);
 			}
 			else
 			{

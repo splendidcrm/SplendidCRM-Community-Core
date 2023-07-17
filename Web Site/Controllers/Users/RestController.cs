@@ -20,74 +20,68 @@
  * "Copyright (C) 2005-2011 SplendidCRM Software, Inc. All rights reserved."
  *********************************************************************************************************************/
 using System;
-using System.IO;
-using System.Xml;
 using System.Data;
 using System.Data.Common;
 using System.Text;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using System.Threading;
-using System.Diagnostics;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Authorization;
 
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Auth.OAuth2.Flows;
 
-using SplendidCRM;
-
-namespace SplendidWebApi.Controllers
+namespace SplendidCRM.Controllers.Users
 {
 	[Authorize]
+	[SplendidSessionAuthorize]
 	[ApiController]
 	[Route("Users/Rest.svc")]
-	public class UsersRestController : ControllerBase
+	public class RestController : ControllerBase
 	{
 		private HttpContext          Context            ;
-		private IWebHostEnvironment  hostingEnvironment ;
-		private IMemoryCache         memoryCache        ;
 		private SplendidCRM.DbProviderFactories  DbProviderFactories = new SplendidCRM.DbProviderFactories();
 		private HttpApplicationState Application        = new HttpApplicationState();
 		private HttpSessionState     Session            ;
 		private Security             Security           ;
 		private Sql                  Sql                ;
 		private L10N                 L10n               ;
-		private Currency             Currency           = new Currency();
-		private SplendidCRM.TimeZone TimeZone           = new SplendidCRM.TimeZone();
-		private Utils                Utils              ;
 		private SqlProcs             SqlProcs           ;
 		private SplendidError        SplendidError      ;
 		private SplendidCache        SplendidCache      ;
-		private RestUtil             RestUtil           ;
 		private EmailUtils           EmailUtils         ;
+		private MimeUtils            MimeUtils          ;
 		private ActiveDirectory      ActiveDirectory    ;
-		private SplendidCRM.Crm.Modules          Modules          ;
-		private SplendidCRM.Crm.Config           Config           = new SplendidCRM.Crm.Config();
+		private ExchangeSecurity     ExchangeSecurity   ;
+		private SyncError            SyncError          ;
+		private SplendidCRM.Crm.Modules               Modules          ;
+		private SplendidCRM.Crm.NoteAttachments       NoteAttachments  ;
+		private Spring.Social.Office365.Office365Sync Office365Sync    ;
+		private GoogleApps           GoogleApps         ;
+		private ExchangeUtils        ExchangeUtils      ;
 
-		public UsersRestController(IWebHostEnvironment hostingEnvironment, IMemoryCache memoryCache, HttpSessionState Session, Security Security, Utils Utils, SplendidError SplendidError, SplendidCache SplendidCache, RestUtil RestUtil, EmailUtils EmailUtils, ActiveDirectory ActiveDirectory, SplendidCRM.Crm.Modules Modules)
+		public RestController(HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, SplendidCache SplendidCache, EmailUtils EmailUtils, MimeUtils MimeUtils, ActiveDirectory ActiveDirectory, ExchangeSecurity ExchangeSecurity, SyncError SyncError, SplendidCRM.Crm.Modules Modules, SplendidCRM.Crm.NoteAttachments NoteAttachments, Spring.Social.Office365.Office365Sync Office365Sync, GoogleApps GoogleApps, ExchangeUtils ExchangeUtils)
 		{
 			this.Context             = this.HttpContext   ;
-			this.hostingEnvironment  = hostingEnvironment ;
-			this.memoryCache         = memoryCache        ;
 			this.Session             = Session            ;
 			this.Security            = Security           ;
-			this.L10n                = new L10N(Sql.ToString(Session["USER_LANG"]));
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
-			this.Utils               = Utils              ;
+			this.L10n                = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
+			this.Sql                 = Sql                ;
+			this.SqlProcs            = SqlProcs           ;
 			this.SplendidError       = SplendidError      ;
 			this.SplendidCache       = SplendidCache      ;
-			this.RestUtil            = RestUtil           ;
 			this.EmailUtils          = EmailUtils         ;
-			this.Modules             = Modules            ;
+			this.MimeUtils           = MimeUtils          ;
 			this.ActiveDirectory     = ActiveDirectory    ;
+			this.ExchangeSecurity    = ExchangeSecurity   ;
+			this.SyncError           = SyncError          ;
+			this.Modules             = Modules            ;
+			this.NoteAttachments     = NoteAttachments    ;
+			this.Office365Sync       = Office365Sync      ;
+			this.GoogleApps          = GoogleApps         ;
+			this.ExchangeUtils       = ExchangeUtils      ;
 		}
 
 		private DataRow GetUser(Guid gID)
@@ -125,14 +119,8 @@ namespace SplendidWebApi.Controllers
 		}
 
 		[HttpPost("[action]")]
-		public string SendTestMessage([FromBody] Dictionary<string, object> dict)
+		public Dictionary<string, object> SendTestMessage([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid   gID                = Guid.Empty  ;
 			string sFROM_ADDR         = String.Empty;
 			string sFROM_NAME         = String.Empty;
@@ -203,21 +191,17 @@ namespace SplendidWebApi.Controllers
 			{
 				string sIMPERSONATED_TYPE        = Sql.ToString (Application["CONFIG.Exchange.ImpersonatedType"]);
 				string sSERVER_URL               = Sql.ToString (Application["CONFIG.Exchange.ServerURL"       ]);
-				ExchangeUtils.SendTestMessage(Application, sSERVER_URL, sMAIL_SMTPUSER, sENCRYPTED_EMAIL_PASSWORD, sFROM_ADDR, sFROM_NAME, sFROM_ADDR, sFROM_NAME);
+				ExchangeUtils.SendTestMessage(sSERVER_URL, sMAIL_SMTPUSER, sENCRYPTED_EMAIL_PASSWORD, sFROM_ADDR, sFROM_NAME, sFROM_ADDR, sFROM_NAME);
 				sStatus = L10n.Term("Users.LBL_SEND_SUCCESSFUL");
 			}
-			return sStatus;
+			Dictionary<string, object> d = new Dictionary<string, object>();
+			d.Add("d", sStatus);
+			return d;
 		}
 
 		[HttpPost("[action]")]
-		public string iCloud_Validate([FromBody] Dictionary<string, object> dict)
+		public Dictionary<string, object> iCloud_Validate([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid   gID                   = Guid.Empty  ;
 			string sMAIL_SMTPUSER        = String.Empty;
 			string sMAIL_SMTPPASS        = String.Empty;
@@ -282,18 +266,14 @@ namespace SplendidWebApi.Controllers
 			{
 				sStatus = L10n.Term("Users.LBL_ICLOUD_TEST_SUCCESSFUL");
 			}
-			return sStatus;
+			Dictionary<string, object> d = new Dictionary<string, object>();
+			d.Add("d", sStatus);
+			return d;
 		}
 
 		[HttpPost("[action]")]
-		public string GoogleApps_Authorize([FromBody] Dictionary<string, object> dict)
+		public Dictionary<string, object> GoogleApps_Authorize([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid   gID            = Guid.Empty  ;
 			string sMAIL_SENDTYPE = String.Empty;
 			string sCode          = String.Empty;
@@ -364,7 +344,7 @@ namespace SplendidWebApi.Controllers
 					// 02/09/2017 Paul.  Update the email address. 
 					StringBuilder sbErrors = new StringBuilder();
 					// 07/14/2020 Paul.  If email not accessible, just ignore as we have a valid token. 
-					sEMAIL1 = SplendidCRM.GoogleApps.GetEmailAddress(Application, gID, sbErrors);
+					sEMAIL1 = GoogleApps.GetEmailAddress(gID, sbErrors);
 					if ( sbErrors.Length > 0 )
 						throw(new Exception(sbErrors.ToString()));
 				}
@@ -377,18 +357,14 @@ namespace SplendidWebApi.Controllers
 			{
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
 			}
-			return sEMAIL1;
+			Dictionary<string, object> d = new Dictionary<string, object>();
+			d.Add("d", sEMAIL1);
+			return d;
 		}
 
 		[HttpPost("[action]")]
 		public void GoogleApps_Delete([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid   gID            = Guid.Empty  ;
 			foreach ( string sColumnName in dict.Keys )
 			{
@@ -409,14 +385,8 @@ namespace SplendidWebApi.Controllers
 		}
 
 		[HttpPost("[action]")]
-		public string GoogleApps_Test([FromBody] Dictionary<string, object> dict)
+		public Dictionary<string, object> GoogleApps_Test([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid   gID            = Guid.Empty  ;
 			foreach ( string sColumnName in dict.Keys )
 			{
@@ -429,14 +399,14 @@ namespace SplendidWebApi.Controllers
 			if ( gID == Security.USER_ID || Security.AdminUserAccess("Users", "edit") >= 0 )
 			{
 				StringBuilder sbErrors = new StringBuilder();
-				SplendidCRM.GoogleApps.TestAccessToken(Application, gID, sbErrors);
+				GoogleApps.TestAccessToken(gID, sbErrors);
 
 				DataRow rdr = GetUser(gID);
 				if ( rdr != null )
 				{
 					string sFROM_ADDR = Sql.ToString(rdr["EMAIL1"]);
 					string sFROM_NAME = Sql.ToString(rdr["FIRST_NAME"]) + " " + Sql.ToString(rdr["LAST_NAME"]);
-					SplendidCRM.GoogleApps.SendTestMessage(Application, gID, sFROM_ADDR, sFROM_NAME, sFROM_ADDR, sFROM_NAME);
+					GoogleApps.SendTestMessage(gID, sFROM_ADDR, sFROM_NAME, sFROM_ADDR, sFROM_NAME);
 					sStatus = sbErrors.ToString();
 					if ( Sql.IsEmptyString(sStatus) )
 						sStatus = L10n.Term("OAuth.LBL_TEST_SUCCESSFUL");
@@ -446,18 +416,14 @@ namespace SplendidWebApi.Controllers
 			{
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
 			}
-			return sStatus;
+			Dictionary<string, object> d = new Dictionary<string, object>();
+			d.Add("d", sStatus);
+			return d;
 		}
 
 		[HttpPost("[action]")]
 		public void GoogleApps_RefreshToken([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid   gID            = Guid.Empty  ;
 			foreach ( string sColumnName in dict.Keys )
 			{
@@ -469,7 +435,7 @@ namespace SplendidWebApi.Controllers
 			string sEMAIL1 = String.Empty;
 			if ( gID == Security.USER_ID || Security.AdminUserAccess("Users", "edit") >= 0 )
 			{
-				SplendidCRM.GoogleApps.RefreshAccessToken(Application, gID, true);
+				GoogleApps.RefreshAccessToken(gID, true);
 			}
 			else
 			{
@@ -478,14 +444,8 @@ namespace SplendidWebApi.Controllers
 		}
 
 		[HttpPost("[action]")]
-		public string Office365_Authorize([FromBody] Dictionary<string, object> dict)
+		public Dictionary<string, object> Office365_Authorize([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid   gID            = Guid.Empty  ;
 			string sMAIL_SENDTYPE = String.Empty;
 			string sCode          = String.Empty;
@@ -510,7 +470,7 @@ namespace SplendidWebApi.Controllers
 					// 02/04/2023 Paul.  Directory Tenant is now required for single tenant app registrations. 
 					string sOAuthDirectoryTenatID = Sql.ToString(Application["CONFIG.Exchange.DirectoryTenantID"]);
 					// 11/09/2019 Paul.  Pass the RedirectURL so that we can call from the React client. 
-					Office365AccessToken token = ActiveDirectory.Office365AcquireAccessToken(Context, sOAuthDirectoryTenatID, sOAuthClientID, sOAuthClientSecret, gID, sCode, sRedirectURL);
+					Office365AccessToken token = Office365Sync.Office365AcquireAccessToken(Request, sOAuthDirectoryTenatID, sOAuthClientID, sOAuthClientSecret, gID, sCode, sRedirectURL);
 					// 01/19/2017 Paul.  We want an OUTBOUND_EMAILS mapping to the office365 OAuth record. 
 					// 02/04/2017 Paul.  OutboundEmail NAME is "system" as it will be the primary email for the user. 
 					Guid gOUTBOUND_EMAIL_ID = Guid.Empty;
@@ -519,7 +479,7 @@ namespace SplendidWebApi.Controllers
 					if ( gID == Security.USER_ID )
 						Session["OFFICE365_OAUTH_ENABLED"] = true;
 					// 02/09/2017 Paul.  Use Microsoft Graph REST API to get email. 
-					MicrosoftGraphProfile profile = ActiveDirectory.GetProfile(Application, token.AccessToken);
+					MicrosoftGraphProfile profile = ActiveDirectory.GetProfile(token.AccessToken);
 					if ( profile != null )
 					{
 						sEMAIL1 = Sql.ToString(profile.EmailAddress);
@@ -557,18 +517,14 @@ namespace SplendidWebApi.Controllers
 			{
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
 			}
-			return sEMAIL1;
+			Dictionary<string, object> d = new Dictionary<string, object>();
+			d.Add("d", sEMAIL1);
+			return d;
 		}
 
 		[HttpPost("[action]")]
 		public void Office365_Delete([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid   gID            = Guid.Empty  ;
 			foreach ( string sColumnName in dict.Keys )
 			{
@@ -589,14 +545,8 @@ namespace SplendidWebApi.Controllers
 		}
 
 		[HttpPost("[action]")]
-		public string Office365_Test([FromBody] Dictionary<string, object> dict)
+		public Dictionary<string, object> Office365_Test([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid   gID            = Guid.Empty  ;
 			foreach ( string sColumnName in dict.Keys )
 			{
@@ -613,7 +563,7 @@ namespace SplendidWebApi.Controllers
 				string sOAuthClientSecret = Sql.ToString(Application["CONFIG.Exchange.ClientSecret"]);
 				// 02/04/2023 Paul.  Directory Tenant is now required for single tenant app registrations. 
 				string sOAuthDirectoryTenatID = Sql.ToString(Application["CONFIG.Exchange.DirectoryTenantID"]);
-				ActiveDirectory.Office365TestAccessToken(Application, sOAuthDirectoryTenatID, sOAuthClientID, sOAuthClientSecret, gID, sbErrors);
+				Office365Sync.Office365TestAccessToken(sOAuthDirectoryTenatID, sOAuthClientID, sOAuthClientSecret, gID, sbErrors);
 
 				DataRow rdr = GetUser(gID);
 				if ( rdr != null )
@@ -621,7 +571,8 @@ namespace SplendidWebApi.Controllers
 					string sFROM_ADDR = Sql.ToString(rdr["EMAIL1"]);
 					string sFROM_NAME = Sql.ToString(rdr["FIRST_NAME"]) + " " + Sql.ToString(rdr["LAST_NAME"]);
 					// 12/13/2020 Paul.  Move Office365 methods to Office365utils. 
-					Office365Utils.SendTestMessage(Application, gID, sFROM_ADDR, sFROM_NAME, sFROM_ADDR, sFROM_NAME);
+					Office365Utils Office365Utils = new Office365Utils(Session, Security, Sql, SqlProcs, SplendidError, MimeUtils, ActiveDirectory, SyncError, NoteAttachments, Office365Sync);
+					Office365Utils.SendTestMessage(gID, sFROM_ADDR, sFROM_NAME, sFROM_ADDR, sFROM_NAME);
 					sStatus = sbErrors.ToString();
 				}
 			}
@@ -629,18 +580,14 @@ namespace SplendidWebApi.Controllers
 			{
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
 			}
-			return sStatus;
+			Dictionary<string, object> d = new Dictionary<string, object>();
+			d.Add("d", sStatus);
+			return d;
 		}
 
 		[HttpPost("[action]")]
 		public void Office365_RefreshToken([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid   gID            = Guid.Empty  ;
 			foreach ( string sColumnName in dict.Keys )
 			{
@@ -656,7 +603,7 @@ namespace SplendidWebApi.Controllers
 				string sOAuthClientSecret = Sql.ToString(Application["CONFIG.Exchange.ClientSecret"]);
 				// 02/04/2023 Paul.  Directory Tenant is now required for single tenant app registrations. 
 				string sOAuthDirectoryTenatID = Sql.ToString(Application["CONFIG.Exchange.DirectoryTenantID"]);
-				ActiveDirectory.Office365RefreshAccessToken(Application, sOAuthDirectoryTenatID, sOAuthClientID, sOAuthClientSecret, gID, true);
+				Office365Sync.Office365RefreshAccessToken(sOAuthDirectoryTenatID, sOAuthClientID, sOAuthClientSecret, gID, true);
 			}
 			else
 			{
@@ -668,12 +615,6 @@ namespace SplendidWebApi.Controllers
 		// 03/24/2021 Paul.  We may need to enable Exchange Sync.  Office365 is enabled in Office365_Authorize. 
 		public void EnableExchangeSync([FromBody] Dictionary<string, object> dict)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
-			if ( !Security.IsAuthenticated() )
-			{
-				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
-			}
-			
 			Guid gID = Sql.ToGuid(Request.Query["ID"]);
 			if ( gID == Security.USER_ID || Security.AdminUserAccess("Users", "edit") >= 0 )
 			{

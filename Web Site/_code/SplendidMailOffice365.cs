@@ -27,7 +27,7 @@ namespace SplendidCRM
 {
 	public class SplendidMailOffice365 : SplendidMailClient
 	{
-		public SplendidMailOffice365(HttpApplicationState Application, Guid gOAUTH_TOKEN_ID)
+		public SplendidMailOffice365(Spring.Social.Office365.Office365Sync Office365Sync, Guid gOAUTH_TOKEN_ID)
 		{
 			throw(new Exception("Office 365 integration is not supported."));
 		}

@@ -33,6 +33,7 @@ using System.CodeDom.Compiler;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.Versioning;
+using System.Threading.Tasks;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
@@ -69,7 +70,7 @@ namespace SplendidCRM
 		private XmlUtil              XmlUtil            ;
 		private Crm.Password         Password           = new Crm.Password();
 
-		public SplendidInit(IWebHostEnvironment hostingEnvironment, IConfiguration configuration, IMemoryCache memoryCache, IHttpContextAccessor httpContextAccessor, HttpSessionState Session, Security Security, Sql Sql, SplendidCache SplendidCache, SplendidError SplendidError, CurrencyUtils CurrencyUtils, XmlUtil XmlUtil)
+		public SplendidInit(IWebHostEnvironment hostingEnvironment, IConfiguration configuration, IMemoryCache memoryCache, IHttpContextAccessor httpContextAccessor, HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidCache SplendidCache, SplendidError SplendidError, CurrencyUtils CurrencyUtils, XmlUtil XmlUtil)
 		{
 			this.hostingEnvironment  = hostingEnvironment ;
 			this.configuration       = configuration      ;
@@ -78,11 +79,30 @@ namespace SplendidCRM
 			this.Session             = Session            ;
 			this.Security            = Security           ;
 			this.Sql                 = Sql                ;
-			this.SqlProcs            = new SqlProcs(Security, Sql);
+			this.SqlProcs            = SqlProcs           ;
 			this.SplendidCache       = SplendidCache      ;
 			this.SplendidError       = SplendidError      ;
 			this.CurrencyUtils       = CurrencyUtils      ;
 			this.XmlUtil             = XmlUtil            ;
+		}
+
+		public async Task InitDatabase()
+		{
+			if ( !Sql.ToBoolean(Application["SplendidInit.InitApp"]) && !MaintenanceMiddleware.MaintenanceMode )
+			{
+				InitAppURLs();
+				// 06/18/2023 Paul.  SqlBuild requires SplendidInit, so it cannot be dependency injected.
+				SqlBuild SqlBuild = new SqlBuild(hostingEnvironment, SplendidError, this);
+				await SqlBuild.BuildDatabase();
+				lock ( this )
+				{
+					if ( !MaintenanceMiddleware.MaintenanceMode )
+					{
+						InitApp();
+						Application["SplendidInit.InitApp"] = true;
+					}
+				}
+			}
 		}
 
 		public void InitAppURLs()

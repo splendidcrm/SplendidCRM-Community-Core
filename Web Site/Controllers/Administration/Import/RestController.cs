@@ -22,72 +22,34 @@
 using System;
 using System.IO;
 using System.Xml;
-using System.Data;
-using System.Data.Common;
-using System.Text;
-using System.Text.Json;
-using System.Text.RegularExpressions;
-using System.Collections.Generic;
-using System.Diagnostics;
 
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Authorization;
 
-using SplendidCRM;
-
-namespace SplendidWebApi.Controllers
+namespace SplendidCRM.Controllers.Administration.Import
 {
 	[Authorize]
+	[SplendidSessionAuthorize]
 	[ApiController]
 	[Route("Administration/Import/Rest.svc")]
-	public class AdministrationImportRestController : ControllerBase
+	public class RestController : ControllerBase
 	{
 		public const string MODULE_NAME = "Import";
-		private IWebHostEnvironment  hostingEnvironment ;
-		private IMemoryCache         memoryCache        ;
-		private SplendidCRM.DbProviderFactories  DbProviderFactories = new SplendidCRM.DbProviderFactories();
-		private HttpApplicationState Application        = new HttpApplicationState();
-		private HttpSessionState     Session            ;
 		private Security             Security           ;
-		private Sql                  Sql                ;
 		private L10N                 L10n               ;
-		private Currency             Currency           = new Currency();
-		private SplendidCRM.TimeZone TimeZone           = new SplendidCRM.TimeZone();
-		private Utils                Utils              ;
-		private SqlProcs             SqlProcs           ;
-		private SplendidError        SplendidError      ;
-		private SplendidCache        SplendidCache      ;
-		private RestUtil             RestUtil           ;
 		private SplendidImport       SplendidImport     ;
-		private SplendidCRM.Crm.Modules          Modules          ;
-		private SplendidCRM.Crm.Config           Config           = new SplendidCRM.Crm.Config();
 
-		public AdministrationImportRestController(IWebHostEnvironment hostingEnvironment, IMemoryCache memoryCache, HttpSessionState Session, Security Security, Utils Utils, SplendidError SplendidError, SplendidCache SplendidCache, RestUtil RestUtil, SplendidImport SplendidImport, SplendidCRM.Crm.Modules Modules)
+		public RestController(HttpSessionState Session, Security Security, SplendidImport SplendidImport)
 		{
-			this.hostingEnvironment  = hostingEnvironment ;
-			this.memoryCache         = memoryCache        ;
-			this.Session             = Session            ;
 			this.Security            = Security           ;
-			this.L10n                = new L10N(Sql.ToString(Session["USER_LANG"]));
-			this.Sql                 = new Sql(Session, Security);
-			this.SqlProcs            = new SqlProcs(Security, Sql);
-			this.Utils               = Utils              ;
-			this.SplendidError       = SplendidError      ;
-			this.SplendidCache       = SplendidCache      ;
-			this.RestUtil            = RestUtil           ;
+			this.L10n                = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 			this.SplendidImport      = SplendidImport     ;
-			this.Modules             = Modules            ;
 		}
 
 		[HttpPost("[action]")]
 		[ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 		public void ImportDatabase(bool Truncate, string FILE_MIME_TYPE, string FILE_DATA)
 		{
-			L10N L10n = new L10N(Sql.ToString(Session["USER_SETTINGS/CULTURE"]));
 			if ( !Security.IsAuthenticated() || Security.AdminUserAccess(MODULE_NAME, "edit") < 0 )
 			{
 				throw(new Exception(L10n.Term("ACL.LBL_INSUFFICIENT_ACCESS")));
