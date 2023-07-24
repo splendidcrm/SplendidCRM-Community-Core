@@ -19,7 +19,7 @@
  * the Appropriate Legal Notices must display the following words on all interactive user interfaces: 
  * "Copyright (C) 2005-2011 SplendidCRM Software, Inc. All rights reserved."
  *********************************************************************************************************************/
-sing System;
+using System;
 using System.Data;
 using System.Data.Common;
 //using Microsoft.VisualBasic;

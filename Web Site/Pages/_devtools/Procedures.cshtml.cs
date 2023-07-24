@@ -457,6 +457,7 @@ namespace SplendidCRM.Pages._devtools
 			sb.AppendLine(" * and disclaimers set forth in the License. ");
 			sb.AppendLine(" * ");
 			sb.AppendLine(" */");
+			sb.AppendLine("");
 			
 			sb.AppendLine("using System;");
 			sb.AppendLine("using System.Data;");

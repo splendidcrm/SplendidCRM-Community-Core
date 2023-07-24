@@ -27,8 +27,8 @@ This is the same installer that we have been using for the last 15 years with ou
 6. Add SplendidCRM application to IIS.
 7. Connect to the database. SQL Server can be remote or local, all that is important is that you can connect. You are responsible for creating the database and providing a SQL user with sufficient ownership access to create SQL objects.
 8. Create or update all tables, functions, views, procedures and/or data to run the app.
-![InstallShield installer](https://www.splendidcrm.com/portals/0/SplendidAppBuilder/Installation_InstallShield.gif "InstallShield installer")
-![Splendid App Builder Configuration Wizard](https://www.splendidcrm.com/portals/0/SplendidAppBuilder/Installation_Wizard.gif "Splendid App Builder Configuration Wizard")
+![InstallShield installer](https://www.splendidcrm.com/portals/0/SplendidCRM/Installation_InstallShield.gif "InstallShield installer")
+![SplendidCRM Configuration Wizard](https://www.splendidcrm.com/portals/0/SplendidCRM/Installation_Wizard.gif "Splendid App Builder Configuration Wizard")
 
 ## Building Yourself
 When building yourself, please note that we prefer to build the ASP.NET code separately from the React code. We do this so that Visual Studio does not take too long to debug as it will attempt to build both every time something small changes. So, we have marked the React files as content and excluded them from the build in the Visual Studio project file.
