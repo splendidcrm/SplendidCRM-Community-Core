@@ -2529,8 +2529,9 @@ namespace SplendidCRM
 		private SplendidCache        SplendidCache      ;
 		private XmlUtil              XmlUtil            ;
 		private ExchangeSecurity     ExchangeSecurity   ;
+		private SplendidDynamic      SplendidDynamic    ;
 
-		public RdlUtil(IWebHostEnvironment hostingEnvironment, IHttpContextAccessor httpContextAccessor, HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, SplendidCache SplendidCache, XmlUtil XmlUtil, ExchangeSecurity ExchangeSecurity) : base()
+		public RdlUtil(IWebHostEnvironment hostingEnvironment, IHttpContextAccessor httpContextAccessor, HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, SplendidCache SplendidCache, XmlUtil XmlUtil, ExchangeSecurity ExchangeSecurity, SplendidDynamic SplendidDynamic) : base()
 		{
 			this.httpContextAccessor = httpContextAccessor;
 			this.Context             = httpContextAccessor.HttpContext;
@@ -2543,6 +2544,7 @@ namespace SplendidCRM
 			this.Security            = Security           ;
 			this.XmlUtil             = XmlUtil            ;
 			this.ExchangeSecurity    = ExchangeSecurity   ;
+			this.SplendidDynamic     = SplendidDynamic    ;
 		}
 
 		/*

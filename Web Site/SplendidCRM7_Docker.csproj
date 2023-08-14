@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup Label="Globals">
     <SccProjectName></SccProjectName>
@@ -51,18 +51,20 @@
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.11.1" />
     <PackageReference Include="SharpZipLib" Version="1.4.2" />
     <PackageReference Include="System.Data.SqlClient" Version="4.8.3" />
+    <PackageReference Include="Twilio" Version="6.8.0" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Don't publish the SPA source files, but do show them in the project files list -->
-    <Compile Remove="Angular\**" />
-    <Content Remove="Angular\**" />
-    <None Include="Angular\**" />
+    <Compile Remove="Angular\dist\**" />
     <Compile Remove="React\**" />
     <Content Remove="$(SpaRoot)**" />
+    <Content Remove="Angular\dist\**" />
     <Content Remove="React\**" />
+    <EmbeddedResource Remove="Angular\dist\**" />
     <EmbeddedResource Remove="React\**" />
     <None Remove="$(SpaRoot)**" />
+    <None Remove="Angular\dist\**" />
     <None Remove="React\**" />
     <None Include="$(SpaRoot)**" Exclude="$(SpaRoot)node_modules\**" />
     <None Include="$(SpaRoot)**" Exclude="$(SpaRoot)platforms\**" />

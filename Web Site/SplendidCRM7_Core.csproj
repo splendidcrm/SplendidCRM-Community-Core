@@ -36,6 +36,8 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="5.0.13" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="5.0.13" />
     <PackageReference Include="Microsoft.AspNetCore.SpaServices.Extensions" Version="5.0.12" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="3.8.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="3.8.0" />
     <PackageReference Include="Microsoft.Identity.Web" Version="1.22.1" />
     <PackageReference Include="SharpZipLib" Version="1.4.2" />
     <PackageReference Include="System.Data.SqlClient" Version="4.8.3" />

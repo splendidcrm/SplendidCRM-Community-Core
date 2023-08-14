@@ -33,15 +33,10 @@ namespace SplendidCRM.Pages
 	{
 		private SplendidCRM.DbProviderFactories  DbProviderFactories = new SplendidCRM.DbProviderFactories();
 		private HttpContext          Context            ;
-		private HttpApplicationState Application        = new HttpApplicationState();
-		private HttpSessionState     Session            ;
-		private Security             Security           ;
+		public  HttpApplicationState Application        = new HttpApplicationState();
+		public  HttpSessionState     Session            ;
+		public  Security             Security           ;
 
-		public  HttpApplicationState application        { get { return Application    ; } }
-		public  HttpSessionState     session            { get { return Session        ; } }
-		public  Security             security           { get { return Security       ; } }
-		public  HttpRequest          request            { get { return Request        ; } }
-		
 		public  CultureInfo          culture            { get; set; }
 		public  string               MachineName        { get; set; }
 		public  string               SqlVersion         { get; set; }
