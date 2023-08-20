@@ -364,7 +364,8 @@ namespace SplendidCRM.Controllers
 				throw(new Exception(L10n.Term("Users.ERR_USER_LOCKED_OUT")));
 			}
 			// 04/16/2013 Paul.  Allow system to be restricted by IP Address. 
-			if ( SplendidInit.InvalidIPAddress(HttpContext.Connection.RemoteIpAddress.ToString()) )
+			// 08/19/2023 Paul.  RemoteIpAddress can be null. 
+			if ( !Sql.IsEmptyString(HttpContext.Connection.RemoteIpAddress) && SplendidInit.InvalidIPAddress(HttpContext.Connection.RemoteIpAddress.ToString()) )
 			{
 				throw(new Exception(L10n.Term("Users.ERR_INVALID_IP_ADDRESS")));
 			}
@@ -496,7 +497,8 @@ namespace SplendidCRM.Controllers
 			string sEMAIL       = Sql.ToString(Email   );
 			
 			// 04/16/2013 Paul.  Allow system to be restricted by IP Address. 
-			if ( SplendidInit.InvalidIPAddress(HttpContext.Connection.RemoteIpAddress.ToString()) )
+			// 08/19/2023 Paul.  RemoteIpAddress can be null. 
+			if ( !Sql.IsEmptyString(HttpContext.Connection.RemoteIpAddress) && SplendidInit.InvalidIPAddress(HttpContext.Connection.RemoteIpAddress.ToString()) )
 			{
 				throw(new Exception(L10n.Term("Users.ERR_INVALID_IP_ADDRESS")));
 			}
