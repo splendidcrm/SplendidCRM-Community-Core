@@ -84,7 +84,7 @@ namespace SplendidCRM
 				}
 				catch (Exception ex)
 				{
-					_logger.LogError($"Failure while processing SchedulerHostedService {ex}");
+					_logger.LogError($"Failure while processing SchedulerHostedService: {ex.Message}");
 					SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
 				}
 			}
