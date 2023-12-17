@@ -60,7 +60,7 @@ namespace SplendidCRM
 
 	public class iCloudSync
 	{
-		public static bool Validate_iCloud(HttpApplicationState Application, string sICLOUD_USERNAME, string sICLOUD_PASSWORD, StringBuilder sbErrors)
+		public static bool Validate_iCloud(string sICLOUD_USERNAME, string sICLOUD_PASSWORD, StringBuilder sbErrors)
 		{
 			return false;
 		}

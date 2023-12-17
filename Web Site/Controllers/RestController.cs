@@ -38,6 +38,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using DocumentFormat.OpenXml.InkML;
+using System.Drawing.Text;
 
 namespace SplendidCRM.Controllers
 {
@@ -79,9 +81,11 @@ namespace SplendidCRM.Controllers
 		private ModuleUtils.Login                ModuleUtilsLogin ;
 		private SplendidExport                   SplendidExport   ;
 		private EmailUtils                       EmailUtils       ;
+		// 11/22/2023 Paul.  When unsyncing, we need to immediately clear the remote flag. 
+		private ExchangeSync                     ExchangeSync     ;
 		#endregion
 
-		public RestController(IWebHostEnvironment hostingEnvironment, IMemoryCache memoryCache, HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, SplendidCache SplendidCache, Utils Utils, RestUtil RestUtil, SplendidDynamic SplendidDynamic, SplendidInit SplendidInit, SplendidCRM.Crm.Modules Modules, ModuleUtils.Audit Audit, ModuleUtils.AuditPersonalInfo AuditPersonalInfo, ModuleUtils.Activities Activities, ActiveDirectory ActiveDirectory, ArchiveUtils ArchiveUtils, ModuleUtils.Login Login, SplendidExport SplendidExport, EmailUtils EmailUtils)
+		public RestController(IWebHostEnvironment hostingEnvironment, IMemoryCache memoryCache, HttpSessionState Session, Security Security, Sql Sql, SqlProcs SqlProcs, SplendidError SplendidError, SplendidCache SplendidCache, Utils Utils, RestUtil RestUtil, SplendidDynamic SplendidDynamic, SplendidInit SplendidInit, SplendidCRM.Crm.Modules Modules, ModuleUtils.Audit Audit, ModuleUtils.AuditPersonalInfo AuditPersonalInfo, ModuleUtils.Activities Activities, ActiveDirectory ActiveDirectory, ArchiveUtils ArchiveUtils, ModuleUtils.Login Login, SplendidExport SplendidExport, EmailUtils EmailUtils, ExchangeSync ExchangeSync)
 		{
 			this.hostingEnvironment  = hostingEnvironment ;
 			this.memoryCache         = memoryCache        ;
@@ -105,6 +109,7 @@ namespace SplendidCRM.Controllers
 			this.ModuleUtilsLogin    = Login              ;
 			this.SplendidExport      = SplendidExport     ;
 			this.EmailUtils          = EmailUtils         ;
+			this.ExchangeSync        = ExchangeSync       ;
 		}
 
 		#region Scalar functions
@@ -7577,6 +7582,17 @@ namespace SplendidCRM.Controllers
 									SplendidError.SystemError(new StackTrace(true).GetFrame(0), ex);
 									throw;
 								}
+							}
+						}
+						// 11/22/2023 Paul.  When unsyncing, we need to immediately clear the remote flag. 
+						if ( ModuleName == "Contacts" )
+						{
+							Guid gUSER_ID = Security.USER_ID;
+							// 11/22/2023 Paul.  We don't need to filter as only contacts previously sync'd will get cleared. 
+							for ( int i = 0; i < arrID_LIST.Count; i++ )
+							{
+								Guid gCONTACT_ID = Sql.ToGuid(arrID_LIST[i]);
+								ExchangeSync.UnsyncContact(gUSER_ID, gCONTACT_ID);
 							}
 						}
 					}

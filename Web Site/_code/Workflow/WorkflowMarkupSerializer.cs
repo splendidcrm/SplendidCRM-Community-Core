@@ -28,12 +28,12 @@ namespace SplendidCRM
 	{
 		public void Serialize(XmlWriter writer, object obj)
 		{
-			throw(new Exception("Not implemented"));
+			throw(new Exception("WorkflowMarkupSerializer.Serialize: Not implemented"));
 		}
 
 		public object Deserialize(XmlReader reader)
 		{
-			throw(new Exception("Not implemented"));
+			throw(new Exception("WorkflowMarkupSerializer.Deserialize: Not implemented"));
 		}
 	}
 }

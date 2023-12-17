@@ -35,6 +35,8 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Memory;
 
+using Spring.Social.Office365;
+
 namespace SplendidCRM
 {
 	public class ModuleUtils
@@ -48,11 +50,11 @@ namespace SplendidCRM
 			private Security                         Security            ;
 			private SqlProcs                         SqlProcs            ;
 			private SplendidError                    SplendidError       ;
-			private SplendidCRM.Crm.Config           Config              = new SplendidCRM.Crm.Config();
+			private Crm.Config                       Config              = new SplendidCRM.Crm.Config();
 			private GoogleApps                       GoogleApps          ;
-			private Spring.Social.Office365.Office365Sync Office365Sync;
+			private Office365Sync                    Office365Sync       ;
 
-			public Login(IMemoryCache memoryCache, Security Security, SplendidError SplendidError, SqlProcs SqlProcs, GoogleApps GoogleApps, Spring.Social.Office365.Office365Sync Office365Sync)
+			public Login(IMemoryCache memoryCache, Security Security, SplendidError SplendidError, SqlProcs SqlProcs, GoogleApps GoogleApps, Office365Sync Office365Sync)
 			{
 				this.memoryCache         = memoryCache        ;
 				this.Security            = Security           ;

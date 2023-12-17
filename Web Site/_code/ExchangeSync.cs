@@ -42,5 +42,9 @@ namespace SplendidCRM
 			{
 			}
 		}
+		
+		public static void UnsyncContact(Guid gUSER_ID, Guid gCONTACT_ID)
+		{
+		}
 	}
 }
