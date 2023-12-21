@@ -112,6 +112,8 @@ To manually enable SplendidCRM, you will need to delete the app_offline.htm file
 			
 			public async Task Start()
 			{
+				Console.WriteLine("SqlBuild.Start");
+				Debug.WriteLine("SqlBuild.Start");
 				string sBuildLogPath = "~/App_Data/Build.log".Replace("~", hostingEnvironment.ContentRootPath);
 				if ( Path.DirectorySeparatorChar == '\\' )
 					sBuildLogPath = sBuildLogPath.Replace("/", "\\");
@@ -326,6 +328,8 @@ To manually enable SplendidCRM, you will need to delete the app_offline.htm file
 								int nDatabases = Sql.ToInteger(cmd.ExecuteScalar());
 								if ( nDatabases == 0 )
 								{
+									Console.WriteLine("SqlBuild.CreateDatabase");
+									Debug.WriteLine("SqlBuild.CreateDatabase");
 									sSQL = "create database " + sDatabaseName;
 									cmd.CommandText = sSQL;
 									cmd.ExecuteNonQuery();
@@ -398,6 +402,8 @@ To manually enable SplendidCRM, you will need to delete the app_offline.htm file
 							int nTables = Sql.ToInteger(cmd.ExecuteScalar());
 							if ( nTables == 0 )
 							{
+								Console.WriteLine("SqlBuild.BuildDatabase");
+								Debug.WriteLine("SqlBuild.BuildDatabase");
 								// 08/12/2015 Paul.  Read the file after checking for a valid database. 
 								string sBuildSQL = File.ReadAllText(sBuildSqlPath);
 								if ( !String.IsNullOrEmpty(sBuildSQL) )
