@@ -145,6 +145,12 @@ namespace SplendidCRM
 			services.AddScoped<SplendidCache>();
 			// 04/27/2024 Paul.  RestUtil uses ChatManager. 
 			services.AddScoped<ChatManager>();
+			// 05/25/2024 Paul.  Move credit card class above RestUtil. 
+			services.AddScoped<PayPalCache>();
+			services.AddScoped<PayPalRest>();
+			services.AddScoped<PayPalUtils>();
+			services.AddScoped<PayTraceUtils>();
+			services.AddScoped<AuthorizeNetUtils>();
 			services.AddScoped<RestUtil>();
 			services.AddScoped<SplendidDynamic>();
 			services.AddScoped<ModuleUtils.Notes>();
