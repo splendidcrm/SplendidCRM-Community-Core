@@ -10,7 +10,7 @@
 
 // 1. React and fabric. 
 import * as React from 'react';
-import { RouteComponentProps }                      from '../Router5'                         ;
+import { RouteComponentProps, withRouter }          from '../Router5'                         ;
 import { Modal }                                    from 'react-bootstrap'                          ;
 import { observer }                                 from 'mobx-react'                               ;
 import { FontAwesomeIcon }                          from '@fortawesome/react-fontawesome'           ;
@@ -60,7 +60,7 @@ interface IMarketoConfigViewState
 }
 
 @observer
-export default class MarketoConfigView extends React.Component<IMarketoConfigViewProps, IMarketoConfigViewState>
+class MarketoConfigView extends React.Component<IMarketoConfigViewProps, IMarketoConfigViewState>
 {
 	private _isMounted = false;
 	private refMap: Record<string, React.RefObject<EditComponent<any, any>>>;
@@ -497,3 +497,4 @@ export default class MarketoConfigView extends React.Component<IMarketoConfigVie
 	}
 }
 
+export default withRouter(MarketoConfigView);

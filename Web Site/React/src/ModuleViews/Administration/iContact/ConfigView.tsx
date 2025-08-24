@@ -10,7 +10,7 @@
 
 // 1. React and fabric. 
 import * as React from 'react';
-import { RouteComponentProps }                      from '../Router5'                         ;
+import { RouteComponentProps, withRouter }          from '../Router5'                         ;
 import { Modal }                                    from 'react-bootstrap'                          ;
 import { observer }                                 from 'mobx-react'                               ;
 import { FontAwesomeIcon }                          from '@fortawesome/react-fontawesome'           ;
@@ -61,7 +61,7 @@ interface IiContactConfigViewState
 }
 
 @observer
-export default class iContactConfigView extends React.Component<IiContactConfigViewProps, IiContactConfigViewState>
+class iContactConfigView extends React.Component<IiContactConfigViewProps, IiContactConfigViewState>
 {
 	private _isMounted = false;
 	private refMap: Record<string, React.RefObject<EditComponent<any, any>>>;
@@ -496,3 +496,4 @@ export default class iContactConfigView extends React.Component<IiContactConfigV
 	}
 }
 
+export default withRouter(iContactConfigView);

@@ -11,7 +11,7 @@
 // 1. React and fabric. 
 import React from 'react';
 import qs from 'query-string';
-import { RouteComponentProps }                      from '../Router5'                         ;
+import { RouteComponentProps, withRouter }          from '../Router5'                         ;
 import { Modal }                                    from 'react-bootstrap'                          ;
 import { observer }                                 from 'mobx-react'                               ;
 import { FontAwesomeIcon }                          from '@fortawesome/react-fontawesome'           ;
@@ -63,7 +63,7 @@ interface IPhoneBurnerConfigViewState
 }
 
 @observer
-export default class PhoneBurnerConfigView extends React.Component<IPhoneBurnerConfigViewProps, IPhoneBurnerConfigViewState>
+class PhoneBurnerConfigView extends React.Component<IPhoneBurnerConfigViewProps, IPhoneBurnerConfigViewState>
 {
 	private _isMounted = false;
 	private refMap: Record<string, React.RefObject<EditComponent<any, any>>>;
@@ -556,3 +556,4 @@ export default class PhoneBurnerConfigView extends React.Component<IPhoneBurnerC
 	}
 }
 
+export default withRouter(PhoneBurnerConfigView);

@@ -2865,6 +2865,8 @@ namespace SplendidCRM
 					arr.Add("arctic_header_logo_style");
 					// 04/20/2021 Paul.  Add support for forced https. 
 					arr.Add("Site.Https"              );
+					// 08/07/2025 Paul.  Add support for DuoUniversal. 
+					arr.Add("DuoUniversal.Enabled"    );
 					DbProviderFactory dbf = DbProviderFactories.GetFactory();
 					using ( IDbConnection con = dbf.CreateConnection() )
 					{
@@ -9172,6 +9174,9 @@ namespace SplendidCRM
 					// 08/05/2020 Paul.  Mobile Client terms. 
 					arr.Add("LNK_MOBILE_CLIENT"      );
 					arr.Add("LBL_REMOTE_SERVER"      );
+					// 08/07/2025 Paul.  Add support for DuoUniversal. 
+					arr.Add("ERR_NOT_CONFIGURED"     );
+					arr.Add("ERR_LOGIN_DENIED"       );
 					DbProviderFactory dbf = DbProviderFactories.GetFactory();
 					using ( IDbConnection con = dbf.CreateConnection() )
 					{
@@ -9183,7 +9188,7 @@ namespace SplendidCRM
 						     + "     , DISPLAY_NAME       " + ControlChars.CrLf
 						     + "  from vwTERMINOLOGY      " + ControlChars.CrLf
 						     + " where LIST_NAME is null  " + ControlChars.CrLf
-						     + "   and (MODULE_NAME is null or MODULE_NAME in ('Users', 'Offline'))" + ControlChars.CrLf;
+						     + "   and (MODULE_NAME is null or MODULE_NAME in ('Users', 'Offline', 'DuoUniversal'))" + ControlChars.CrLf;
 						using ( IDbCommand cmd = con.CreateCommand() )
 						{
 							cmd.CommandText = sSQL;

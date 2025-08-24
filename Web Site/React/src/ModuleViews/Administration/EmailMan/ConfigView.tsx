@@ -71,7 +71,7 @@ interface IExchangeConfigViewState
 }
 
 @observer
-export default class EmailManConfigView extends React.Component<IExchangeConfigViewProps, IExchangeConfigViewState>
+class EmailManConfigView extends React.Component<IExchangeConfigViewProps, IExchangeConfigViewState>
 {
 	private _isMounted = false;
 	private refMap: Record<string, React.RefObject<EditComponent<any, any>>>;
@@ -1169,3 +1169,4 @@ export default class EmailManConfigView extends React.Component<IExchangeConfigV
 	}
 }
 
+export default withRouter(EmailManConfigView);

@@ -11,7 +11,7 @@
 // 1. React and fabric. 
 import React from 'react';
 import qs from 'query-string';
-import { RouteComponentProps }                      from '../Router5'                         ;
+import { RouteComponentProps, withRouter }          from '../Router5'                         ;
 import { Modal }                                    from 'react-bootstrap'                          ;
 import { observer }                                 from 'mobx-react'                               ;
 import { FontAwesomeIcon }                          from '@fortawesome/react-fontawesome'           ;
@@ -61,7 +61,7 @@ interface IMailChimpConfigViewState
 }
 
 @observer
-export default class MailChimpConfigView extends React.Component<IMailChimpConfigViewProps, IMailChimpConfigViewState>
+class MailChimpConfigView extends React.Component<IMailChimpConfigViewProps, IMailChimpConfigViewState>
 {
 	private _isMounted = false;
 	private refMap: Record<string, React.RefObject<EditComponent<any, any>>>;
@@ -529,3 +529,4 @@ export default class MailChimpConfigView extends React.Component<IMailChimpConfi
 	}
 }
 
+export default withRouter(MailChimpConfigView);

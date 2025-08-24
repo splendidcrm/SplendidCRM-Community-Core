@@ -62,7 +62,7 @@ interface IQuickBooksConfigViewState
 }
 
 @observer
-export default class QuickBooksConfigView extends React.Component<IQuickBooksConfigViewProps, IQuickBooksConfigViewState>
+class QuickBooksConfigView extends React.Component<IQuickBooksConfigViewProps, IQuickBooksConfigViewState>
 {
 	private _isMounted = false;
 	private refMap: Record<string, React.RefObject<EditComponent<any, any>>>;
@@ -659,3 +659,4 @@ export default class QuickBooksConfigView extends React.Component<IQuickBooksCon
 	}
 }
 
+export default withRouter(QuickBooksConfigView);
